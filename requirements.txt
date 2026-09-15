@@ -1,0 +1,3 @@
+# The parser module itself has zero runtime dependencies (stdlib only).
+# This is needed for running tests only.
+pytest>=8.0

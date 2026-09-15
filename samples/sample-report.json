@@ -1,0 +1,158 @@
+{
+  "config": {
+    "rootDir": "/repo/tests",
+    "version": "1.48.0"
+  },
+  "suites": [
+    {
+      "title": "auth.spec.ts",
+      "file": "auth.spec.ts",
+      "line": 0,
+      "column": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Login flow",
+          "file": "auth.spec.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "id": "spec-1",
+              "title": "should login with valid credentials",
+              "file": "auth.spec.ts",
+              "line": 5,
+              "column": 3,
+              "tags": ["@smoke"],
+              "ok": true,
+              "tests": [
+                {
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "timeout": 30000,
+                  "annotations": [
+                    { "type": "requirement", "description": "PROJ-101" }
+                  ],
+                  "expectedStatus": "passed",
+                  "status": "expected",
+                  "results": [
+                    { "workerIndex": 0, "status": "passed", "duration": 842, "retry": 0, "errors": [] }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "spec-2",
+              "title": "should reject invalid password",
+              "file": "auth.spec.ts",
+              "line": 15,
+              "column": 3,
+              "tags": [],
+              "ok": true,
+              "tests": [
+                {
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "timeout": 30000,
+                  "annotations": [
+                    { "type": "requirement", "description": "PROJ-101" }
+                  ],
+                  "expectedStatus": "passed",
+                  "status": "expected",
+                  "results": [
+                    { "workerIndex": 0, "status": "failed", "duration": 1210, "retry": 0, "errors": [{ "message": "Timeout waiting for selector" }] },
+                    { "workerIndex": 1, "status": "passed", "duration": 905, "retry": 1, "errors": [] }
+                  ]
+                }
+              ]
+            }
+          ],
+          "suites": []
+        },
+        {
+          "title": "Session handling",
+          "file": "auth.spec.ts",
+          "line": 30,
+          "column": 6,
+          "specs": [
+            {
+              "id": "spec-3",
+              "title": "should expire session after logout",
+              "file": "auth.spec.ts",
+              "line": 32,
+              "column": 3,
+              "tags": ["@regression"],
+              "ok": false,
+              "tests": [
+                {
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "timeout": 30000,
+                  "annotations": [
+                    { "type": "requirement", "description": "PROJ-108" }
+                  ],
+                  "expectedStatus": "passed",
+                  "status": "unexpected",
+                  "results": [
+                    { "workerIndex": 0, "status": "failed", "duration": 2001, "retry": 0, "errors": [{ "message": "expect(received).toBe(expected)" }] },
+                    { "workerIndex": 1, "status": "failed", "duration": 1980, "retry": 1, "errors": [{ "message": "expect(received).toBe(expected)" }] }
+                  ]
+                },
+                {
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "timeout": 30000,
+                  "annotations": [
+                    { "type": "requirement", "description": "PROJ-108" }
+                  ],
+                  "expectedStatus": "passed",
+                  "status": "expected",
+                  "results": [
+                    { "workerIndex": 2, "status": "passed", "duration": 1755, "retry": 0, "errors": [] }
+                  ]
+                }
+              ]
+            }
+          ],
+          "suites": []
+        }
+      ]
+    },
+    {
+      "title": "checkout.spec.ts",
+      "file": "checkout.spec.ts",
+      "line": 0,
+      "column": 0,
+      "specs": [
+        {
+          "id": "spec-4",
+          "title": "should apply discount code at checkout",
+          "file": "checkout.spec.ts",
+          "line": 8,
+          "column": 3,
+          "tags": [],
+          "ok": true,
+          "tests": [
+            {
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "status": "expected",
+              "results": [
+                { "workerIndex": 0, "status": "passed", "duration": 640, "retry": 0, "errors": [] }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-15T04:00:00.000Z",
+    "duration": 9463
+  }
+}
