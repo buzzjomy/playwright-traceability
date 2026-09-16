@@ -1,3 +1,5 @@
-# The parser module itself has zero runtime dependencies (stdlib only).
-# This is needed for running tests only.
+# report_parser.py and static_parser.py's Python side have zero runtime
+# dependencies (stdlib only). feature_parser.py depends on gherkin-official,
+# Cucumber's own Gherkin parser, for robust .feature file parsing.
+gherkin-official>=24.1.0
 pytest>=8.0

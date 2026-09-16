@@ -1,6 +1,6 @@
 # Playwright Test Inventory Parsers (Milestone 1)
 
-Two complementary parsers, covering the first two issues of Milestone 1:
+Three complementary parsers, covering the first three issues of Milestone 1:
 
 1. `parser/report_parser.py` — parses Playwright's JSON reporter output into
    structured test records (title, file, status, duration). The **primary**
@@ -13,6 +13,11 @@ Two complementary parsers, covering the first two issues of Milestone 1:
    -style comment annotations that were never registered as real Playwright
    annotations. This is an **enrichment** layer on top of (1), not a
    replacement for it — see below for why.
+3. `parser/feature_parser.py` — parses `.feature` files for BDD/Cucumber
+   teams (e.g. `playwright-bdd`), where the human-readable scenario lives in
+   Gherkin and the actual Playwright code is in separate step definitions
+   that (1) and (2) never see. Also an **enrichment** layer, using
+   `gherkin-official` (Cucumber's own parser) for robust parsing.
 
 ## Why parse the JSON reporter, not `.spec.ts` source files, as the primary source
 
@@ -81,12 +86,38 @@ see "Why parse the JSON reporter..." above.
 | `tags` | The `{ tag: ... }` option passed to `test(...)`, if any (string or array) |
 | `jira_keys` | Extracted from the tag option, the test's leading comment text, and the title — same regex as `report_parser.py`, so it also catches `Trace(Jira:PROJ-13)`-style comments that never register as a real Playwright annotation |
 
+## Feature parser usage
+
+Requires `gherkin-official` (see `requirements.txt`) — Cucumber's own
+Gherkin parser, implemented in pure Python, so unlike the static parser
+this needs no subprocess or Node dependency.
+
+```bash
+pip install -r requirements.txt
+python -m parser.feature_parser features/
+```
+
+This prints a JSON array of scenario records to stdout — one per concrete
+`Scenario`, plus one per row of every `Scenario Outline`'s `Examples`
+table (values are written directly in the `.feature` file, so unlike a
+`.spec.ts` loop, every row *is* fully knowable statically — see "Why parse
+the JSON reporter..." above for the contrast). `Background` steps don't
+produce their own record. `Rule` blocks aren't supported yet (a rarer
+Gherkin 6+ feature) — their scenarios are simply skipped.
+
+| Field | Source |
+|---|---|
+| `title` / `full_title` | Scenario name, prefixed by the Feature name. For an Examples row, `<placeholder>` values are substituted into the name (mirroring Cucumber's own step-text substitution) and the row's values are also appended as `[key=value, ...]`, since many outlines only reference placeholders in their steps, not the scenario name — without this, every row would otherwise share one identical, ambiguous title |
+| `file`, `line`, `column` | Location of the `Scenario` keyword (or, for an Examples row, that row's own location) |
+| `tags` | Combined `@tags` from the Feature, the Scenario (or Scenario Outline), and — for an Examples row — that specific Examples block |
+| `jira_keys` | Extracted from tags, the scenario's leading comment text, and the title — same regex as `report_parser.py`, so `Trace(Jira:PROJ-13)`-style comments work here too |
+
 ## Design notes for whoever picks up the next issue
 
-- `TestRecord` and `StaticTestRecord` are plain dataclasses with no DB
-  dependency on purpose — the Postgres model/ORM mapping should live in a
-  separate module that imports these, not be merged into them. Keeps this
-  parseable/testable standalone.
+- `TestRecord`, `StaticTestRecord`, and `FeatureTestRecord` are plain
+  dataclasses with no DB dependency on purpose — the Postgres model/ORM
+  mapping should live in a separate module that imports these, not be
+  merged into them. Keeps this parseable/testable standalone.
 - Multi-project specs are intentionally NOT collapsed into one record. If a
   test passes on chromium but fails on firefox, that's a real signal the
   dashboard (Milestone 3) needs to show separately, not average away.
@@ -95,21 +126,25 @@ see "Why parse the JSON reporter..." above.
   not by checking the import source. This is a deliberate MVP tradeoff —
   false positives are very unlikely in a file matching `*.spec.ts`, but a
   future issue could tighten this by checking the import statement.
-- Reconciling `TestRecord` (from a run) with `StaticTestRecord` (from
-  source) — e.g. to show "exists in source but never run" in the dashboard —
-  is deferred to a later issue; this one only produces the two record
-  streams independently.
+- Reconciling `TestRecord` (from a run) with `StaticTestRecord` /
+  `FeatureTestRecord` (from source) — e.g. to show "exists in source but
+  never run" in the dashboard — is deferred to a later issue; each parser
+  currently produces its own record stream independently. A simple
+  `(file, title)` match is probably sufficient when this is picked up;
+  full formal reconciliation is likely overkill for what Milestone 3 needs.
 
 ## Tests
 
 ```bash
-pip install pytest
+pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-23 tests. `test_report_parser.py` (14): nested describe flattening,
+32 tests. `test_report_parser.py` (14): nested describe flattening,
 multi-project specs, retry/flakiness detection, and Jira key extraction
 across tag/annotation/title sources. `test_static_parser.py` (9): nested
 describe flattening, `test.skip`/`test.describe.skip` capture, dynamic-title
 exclusion, and Jira key extraction from tag options and `Trace(...)`
-comments.
+comments. `test_feature_parser.py` (9): Feature/Scenario tag combination,
+`Trace(...)` comment extraction, and Scenario Outline expansion into one
+record per Examples row with combined tags and distinct titles.

@@ -79,3 +79,35 @@ class StaticTestRecord:
             "tags": self.tags,
             "jira_keys": self.jira_keys,
         }
+
+
+@dataclass
+class FeatureTestRecord:
+    """One concrete Gherkin scenario, from a .feature file.
+
+    A Scenario Outline with an Examples table expands into one record per
+    example row, with <placeholder> values substituted into the scenario
+    name (mirroring how Cucumber substitutes them into step text) — unlike
+    a data-driven .spec.ts loop, Examples table values are written directly
+    in source, so every row is fully knowable statically.
+    """
+
+    title: str
+    full_title: str
+    file: str
+    line: int
+    column: int
+    tags: list[str] = field(default_factory=list)
+    jira_keys: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable dict representation of this record."""
+        return {
+            "title": self.title,
+            "full_title": self.full_title,
+            "file": self.file,
+            "line": self.line,
+            "column": self.column,
+            "tags": self.tags,
+            "jira_keys": self.jira_keys,
+        }
