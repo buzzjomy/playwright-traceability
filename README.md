@@ -1,18 +1,29 @@
-# Playwright Report Parser (Milestone 1)
+# Playwright Test Inventory Parsers (Milestone 1)
 
-Covers the first issue of Milestone 1: *"Parse Playwright JSON reporter output
-into structured test records (title, file, status, duration)."*
+Two complementary parsers, covering the first two issues of Milestone 1:
 
-## Why parse the JSON reporter, not `.spec.ts` source files
+1. `parser/report_parser.py` — parses Playwright's JSON reporter output into
+   structured test records (title, file, status, duration). The **primary**
+   source of truth: it always has real, resolved test titles and outcomes,
+   regardless of whether a test was hand-written, generated in a loop, or
+   authored through a BDD layer.
+2. `parser/static_parser.py` — statically parses `.spec.ts` source files via
+   a TypeScript AST (not regex) to catch what the run report can't: tests
+   that never ran (skipped, grep-filtered out), and `Trace(Jira:PROJ-13)`
+   -style comment annotations that were never registered as real Playwright
+   annotations. This is an **enrichment** layer on top of (1), not a
+   replacement for it — see below for why.
+
+## Why parse the JSON reporter, not `.spec.ts` source files, as the primary source
 
 The run report always contains real, resolved test titles and outcomes,
 regardless of whether a test was hand-written, generated in a loop, or
-authored through a BDD layer. Static source parsing (tags, `Trace(...)`
-annotations, file location) is added as an **enrichment** layer on top of
-this later — not as the primary source of truth. See the later issues in
-Milestone 1 for that.
+authored through a BDD layer. A data-driven test built in a loop only gets
+real, resolved titles at run time — static source parsing can't know how
+many tests a loop produces or what their titles will be, so it deliberately
+skips tests with a dynamically-built title rather than guessing.
 
-## Usage
+## Report parser usage
 
 ```bash
 # From your Playwright project:
@@ -40,21 +51,54 @@ have independently different outcomes.
 | `status` | Final attempt's status (`passed`/`failed`/`timedOut`/etc) |
 | `duration_ms` | Final attempt's duration |
 | `retry_count` | Number of attempts beyond the first |
-| `is_flaky` | True if any earlier attempt failed but the final attempt passed |
+| `is_flaky` | True if Playwright's own `test.status` is `"flaky"` (failed at least once, but the final attempt passed) |
 | `error_message` | First error message from the final attempt, if any |
+
+## Static parser usage
+
+Requires Node.js — the AST walk uses the real TypeScript compiler API
+(`static_parser/parse_specs.js`), not regex, so it survives real-world
+formatting (multi-line calls, nested describes, etc). Business logic like
+Jira-key extraction stays in Python and is reused from `report_parser.py`,
+not duplicated in JS.
+
+```bash
+cd static_parser && npm install && cd ..
+python -m parser.static_parser tests/
+```
+
+This prints a JSON array of statically-discovered test records to stdout —
+one per `test(...)` definition with a static (non-dynamic) title, including
+`test.skip(...)`, `test.only(...)`, and tests nested in `test.describe`
+(including `.skip`/`.only` variants). A test with a dynamically-built title
+(inside a loop, or interpolated) is intentionally **not** represented here —
+see "Why parse the JSON reporter..." above.
+
+| Field | Source |
+|---|---|
+| `title` / `full_title` | Static string literal title, with nested `describe` titles joined by `>` |
+| `file`, `line`, `column` | Location of the `test(...)` call in source |
+| `tags` | The `{ tag: ... }` option passed to `test(...)`, if any (string or array) |
+| `jira_keys` | Extracted from the tag option, the test's leading comment text, and the title — same regex as `report_parser.py`, so it also catches `Trace(Jira:PROJ-13)`-style comments that never register as a real Playwright annotation |
 
 ## Design notes for whoever picks up the next issue
 
-- `jira_keys` extraction currently only looks at tags/annotations/title on
-  the JSON report. The next issue (static AST parser) should also catch
-  `Trace(Jira:PROJ-13)`-style comments that don't show up in the run report
-  at all (e.g. if the annotation isn't registered via `test.info().annotations`).
-- `TestRecord` is a plain dataclass with no DB dependency on purpose — the
-  Postgres model/ORM mapping should live in a separate module that imports
-  this one, not be merged into it. Keeps this parseable/testable standalone.
+- `TestRecord` and `StaticTestRecord` are plain dataclasses with no DB
+  dependency on purpose — the Postgres model/ORM mapping should live in a
+  separate module that imports these, not be merged into them. Keeps this
+  parseable/testable standalone.
 - Multi-project specs are intentionally NOT collapsed into one record. If a
   test passes on chromium but fails on firefox, that's a real signal the
   dashboard (Milestone 3) needs to show separately, not average away.
+- The static parser identifies Playwright calls purely by the identifier
+  name `test` (`test(...)`, `test.describe(...)`, `test.skip(...)`, etc.),
+  not by checking the import source. This is a deliberate MVP tradeoff —
+  false positives are very unlikely in a file matching `*.spec.ts`, but a
+  future issue could tighten this by checking the import statement.
+- Reconciling `TestRecord` (from a run) with `StaticTestRecord` (from
+  source) — e.g. to show "exists in source but never run" in the dashboard —
+  is deferred to a later issue; this one only produces the two record
+  streams independently.
 
 ## Tests
 
@@ -63,6 +107,9 @@ pip install pytest
 python -m pytest tests/ -v
 ```
 
-14 tests, covering: nested describe flattening, multi-project specs,
-retry/flakiness detection, and Jira key extraction across tag/annotation/
-title sources.
+23 tests. `test_report_parser.py` (14): nested describe flattening,
+multi-project specs, retry/flakiness detection, and Jira key extraction
+across tag/annotation/title sources. `test_static_parser.py` (9): nested
+describe flattening, `test.skip`/`test.describe.skip` capture, dynamic-title
+exclusion, and Jira key extraction from tag options and `Trace(...)`
+comments.

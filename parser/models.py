@@ -46,3 +46,34 @@ class TestRecord:
             "is_flaky": self.is_flaky,
             "error_message": self.error_message,
         }
+
+
+@dataclass
+class StaticTestRecord:
+    """One `test()` definition found by statically parsing a .spec.ts file.
+
+    Unlike TestRecord, this has no run outcome (status/duration/etc) — it
+    exists to catch tests and Jira annotations that a JSON run report would
+    never show at all: skipped, grep-filtered out, or simply never executed.
+    Tests with a dynamically-built title (e.g. inside a loop) are not
+    represented here — see static_parser/parse_specs.js for why.
+    """
+
+    title: str
+    full_title: str
+    file: str
+    line: int
+    column: int
+    tags: list[str] = field(default_factory=list)
+    jira_keys: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "title": self.title,
+            "full_title": self.full_title,
+            "file": self.file,
+            "line": self.line,
+            "column": self.column,
+            "tags": self.tags,
+            "jira_keys": self.jira_keys,
+        }

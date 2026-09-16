@@ -1,0 +1,9 @@
+{
+  "name": "playwright-traceability-static-parser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static AST reader for Playwright .spec.ts files. Walks the TypeScript AST directly instead of using regex, so it survives real-world formatting (multi-line calls, nested describes, etc). Emits raw JSON for parser/static_parser.py to interpret — Jira-key extraction and other business logic stays in Python, not duplicated here.",
+  "dependencies": {
+    "typescript": "^5.6.0"
+  }
+}
