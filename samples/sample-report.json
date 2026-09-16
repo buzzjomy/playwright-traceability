@@ -23,7 +23,7 @@
               "file": "auth.spec.ts",
               "line": 5,
               "column": 3,
-              "tags": ["@smoke"],
+              "tags": ["smoke"],
               "ok": true,
               "tests": [
                 {
@@ -81,7 +81,7 @@
               "file": "auth.spec.ts",
               "line": 32,
               "column": 3,
-              "tags": ["@regression"],
+              "tags": ["regression"],
               "ok": false,
               "tests": [
                 {

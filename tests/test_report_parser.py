@@ -58,7 +58,7 @@ def test_untagged_test_has_no_jira_keys(records):
 
 def test_tags_are_preserved(records):
     rec = next(r for r in records if r.spec_id == "spec-1")
-    assert rec.tags == ["@smoke"]
+    assert rec.tags == ["smoke"]
 
 
 @pytest.mark.parametrize(
