@@ -32,10 +32,17 @@ _NODE_SCRIPT = _STATIC_PARSER_DIR / "parse_specs.js"
 
 
 def find_spec_files(root: str | Path) -> list[Path]:
+    """Recursively find every *.spec.ts file under root, sorted for stable output."""
     return sorted(Path(root).rglob("*.spec.ts"))
 
 
 def _run_node_parser(files: list[Path]) -> list[dict]:
+    """Invoke parse_specs.js on the given files and return its raw JSON records.
+
+    Each file is passed as a (resolved absolute path, original path) pair so
+    the Node script can read from disk while still emitting the caller's
+    original (typically repo-relative) path in the "file" field.
+    """
     if not files:
         return []
     path_pairs: list[str] = []
@@ -80,6 +87,7 @@ def parse_spec_files(files: list[str | Path]) -> list[StaticTestRecord]:
 
 
 def parse_spec_directory(root: str | Path) -> list[StaticTestRecord]:
+    """Find every .spec.ts file under root and statically parse all of them."""
     return parse_spec_files(find_spec_files(root))
 
 

@@ -22,6 +22,12 @@ const fs = require('fs');
 
 const TEST_LEVEL_MODIFIERS = new Set(['skip', 'only', 'fixme', 'fail']);
 
+/**
+ * Unwind a call target expression into its dotted member path.
+ * e.g. `test` -> ["test"], `test.describe.only` -> ["test", "describe", "only"].
+ * Returns null for anything that isn't a plain identifier/property-access chain
+ * (e.g. a computed member access), so callers can safely ignore it.
+ */
 function getMemberPath(expr) {
   if (ts.isIdentifier(expr)) return [expr.text];
   if (ts.isPropertyAccessExpression(expr)) {
@@ -32,10 +38,12 @@ function getMemberPath(expr) {
   return null;
 }
 
-// Only resolves titles that are plain strings in source (string literal or
-// template literal with no ${...} substitutions). A dynamic title (built in
-// a loop, interpolated) can't be known statically — those tests are only
-// knowable from a real run report, by design; see CLAUDE.md.
+/**
+ * Resolve a node to a plain string if it's a string literal or a template
+ * literal with no ${...} substitutions; returns null otherwise. A dynamic
+ * title (built in a loop, interpolated) can't be known statically — those
+ * tests are only knowable from a real run report, by design; see CLAUDE.md.
+ */
 function resolveStaticString(node) {
   if (!node) return null;
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
@@ -44,14 +52,21 @@ function resolveStaticString(node) {
   return null;
 }
 
+/** Find the callback (arrow function or function expression) among a call's arguments. */
 function findFunctionArgument(args) {
   return args.find((a) => ts.isArrowFunction(a) || ts.isFunctionExpression(a));
 }
 
+/** Find the `{ tag: ..., annotation: ... }` details object among a call's arguments, if any. */
 function findOptionsObjectArgument(args) {
   return args.find((a) => ts.isObjectLiteralExpression(a));
 }
 
+/**
+ * Read the `tag` property off a test's details object (the 2nd argument to
+ * `test(title, { tag: ... }, fn)`), normalized to an array of strings
+ * whether it was written as a single string or an array literal.
+ */
 function extractTagOption(optionsArg) {
   if (!optionsArg) return [];
   const tagProp = optionsArg.properties.find(
@@ -66,17 +81,31 @@ function extractTagOption(optionsArg) {
   return [];
 }
 
+/**
+ * Get the raw text of any comment lines immediately preceding a node (e.g.
+ * a "// Trace(Jira:PROJ-13)" line above a test), concatenated. Returns ""
+ * if there are none.
+ */
 function getLeadingCommentsText(node, sourceFile) {
   const fullText = sourceFile.getFullText();
   const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) || [];
   return ranges.map((r) => fullText.slice(r.pos, r.end)).join('\n');
 }
 
+/**
+ * Parse one .spec.ts file and return one raw record per statically-titled
+ * `test(...)` definition found in it (see `visit` for the traversal rules).
+ * `filePath` is read from disk; `displayPath` is what's emitted as "file".
+ */
 function parseFile(filePath, displayPath) {
   const text = fs.readFileSync(filePath, 'utf8');
   const sourceFile = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const records = [];
 
+  /**
+   * Record a `test(...)`-family call as one raw fact, unless its title
+   * can't be statically resolved (in which case it's silently skipped).
+   */
   function handleTest(node, ancestors) {
     const title = resolveStaticString(node.arguments[0]);
     if (title === null) return;
@@ -95,6 +124,11 @@ function parseFile(filePath, displayPath) {
     });
   }
 
+  /**
+   * Handle a `test.describe(...)`-family call: recurse into its callback
+   * body with the describe's title (if statically resolvable) pushed onto
+   * the ancestor chain, so nested tests get the right full_title.
+   */
   function handleDescribe(node, ancestors) {
     const title = resolveStaticString(node.arguments[0]);
     const fnArg = findFunctionArgument(node.arguments);
@@ -102,6 +136,13 @@ function parseFile(filePath, displayPath) {
     visit(fnArg.body, title ? ancestors.concat([title]) : ancestors);
   }
 
+  /**
+   * Recursively walk the AST looking for `test`-namespaced calls: a bare
+   * `test(...)` or `test.skip/only/fixme/fail(...)` is recorded as a test;
+   * `test.describe(...)` (including its `.only`/`.skip`/`.fixme` variants)
+   * recurses into its body via handleDescribe and is not walked again here.
+   * Everything else is walked generically so nested calls are still found.
+   */
   function visit(node, ancestors) {
     if (ts.isCallExpression(node)) {
       const memberPath = getMemberPath(node.expression);
@@ -123,6 +164,10 @@ function parseFile(filePath, displayPath) {
   return records;
 }
 
+/**
+ * CLI entry point: parse (actualPath, displayPath) pairs from argv and
+ * print every file's records as one combined JSON array to stdout.
+ */
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.length % 2 !== 0) {

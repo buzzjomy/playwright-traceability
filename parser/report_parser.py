@@ -123,6 +123,7 @@ def parse_report(report: dict) -> list[TestRecord]:
 
 
 def parse_report_file(path: str | Path) -> list[TestRecord]:
+    """Load a JSON report from disk and parse it into TestRecords."""
     with open(path, "r", encoding="utf-8") as f:
         report = json.load(f)
     return parse_report(report)

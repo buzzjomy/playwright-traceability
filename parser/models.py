@@ -30,6 +30,7 @@ class TestRecord:
     error_message: str | None = None
 
     def to_dict(self) -> dict:
+        """Return a JSON-serializable dict representation of this record."""
         return {
             "spec_id": self.spec_id,
             "title": self.title,
@@ -68,6 +69,7 @@ class StaticTestRecord:
     jira_keys: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """Return a JSON-serializable dict representation of this record."""
         return {
             "title": self.title,
             "full_title": self.full_title,
