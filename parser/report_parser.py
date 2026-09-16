@@ -70,7 +70,8 @@ def _parse_spec(spec: dict, ancestor_titles: list[str]) -> list[TestRecord]:
         jira_keys = extract_jira_keys(*tags, *annotation_texts, title)
 
         results = test.get("results", []) or []
-        final_status, duration_ms, error_message, is_flaky = _resolve_outcome(results)
+        final_status, duration_ms, error_message = _resolve_outcome(results)
+        is_flaky = test.get("status") == "flaky"
 
         records.append(
             TestRecord(
@@ -94,16 +95,14 @@ def _parse_spec(spec: dict, ancestor_titles: list[str]) -> list[TestRecord]:
     return records
 
 
-def _resolve_outcome(results: list[dict]) -> tuple[str, int, str | None, bool]:
+def _resolve_outcome(results: list[dict]) -> tuple[str, int, str | None]:
     """Reduce a list of retry attempts down to one final outcome.
 
     Playwright retries a failing test up to N times; `results` holds one
-    entry per attempt in order. The last attempt is the deciding one, but we
-    want to know if any earlier attempt failed (that's flakiness worth
-    surfacing even when the retry ultimately passed).
+    entry per attempt in order. The last attempt is the deciding one.
     """
     if not results:
-        return "unknown", 0, None, False
+        return "unknown", 0, None
 
     last = results[-1]
     final_status = last.get("status", "unknown")
@@ -112,10 +111,7 @@ def _resolve_outcome(results: list[dict]) -> tuple[str, int, str | None, bool]:
     errors = last.get("errors", []) or []
     error_message = errors[0].get("message") if errors else None
 
-    any_earlier_failure = any(r.get("status") == "failed" for r in results[:-1])
-    is_flaky = any_earlier_failure and final_status == "passed"
-
-    return final_status, duration_ms, error_message, is_flaky
+    return final_status, duration_ms, error_message
 
 
 def parse_report(report: dict) -> list[TestRecord]:

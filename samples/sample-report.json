@@ -58,7 +58,7 @@
                     { "type": "requirement", "description": "PROJ-101" }
                   ],
                   "expectedStatus": "passed",
-                  "status": "expected",
+                  "status": "flaky",
                   "results": [
                     { "workerIndex": 0, "status": "failed", "duration": 1210, "retry": 0, "errors": [{ "message": "Timeout waiting for selector" }] },
                     { "workerIndex": 1, "status": "passed", "duration": 905, "retry": 1, "errors": [] }
