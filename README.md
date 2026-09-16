@@ -132,6 +132,16 @@ Gherkin 6+ feature) — their scenarios are simply skipped.
   currently produces its own record stream independently. A simple
   `(file, title)` match is probably sufficient when this is picked up;
   full formal reconciliation is likely overkill for what Milestone 3 needs.
+- Zero-test-suite handling (a team with no Playwright tests yet, or none
+  matching a given directory) is already graceful at the parser level: all
+  three parsers return `[]` rather than raising, for both an empty
+  directory and one that doesn't exist at all — the natural state for a
+  project that hasn't created a `tests/` folder yet. The one asymmetry is
+  intentional: `report_parser.parse_report_file` *does* raise if the report
+  file itself is missing, since "no run report was ever generated" is a
+  real, distinct usage error — not the same as "the report says zero
+  tests ran." A dashboard-level "0% coverage, get started" empty state is
+  Milestone 3 work and out of scope until the dashboard exists.
 
 ## Tests
 
@@ -140,7 +150,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-32 tests. `test_report_parser.py` (14): nested describe flattening,
+40 tests. `test_report_parser.py` (14): nested describe flattening,
 multi-project specs, retry/flakiness detection, and Jira key extraction
 across tag/annotation/title sources. `test_static_parser.py` (9): nested
 describe flattening, `test.skip`/`test.describe.skip` capture, dynamic-title
@@ -148,3 +158,5 @@ exclusion, and Jira key extraction from tag options and `Trace(...)`
 comments. `test_feature_parser.py` (9): Feature/Scenario tag combination,
 `Trace(...)` comment extraction, and Scenario Outline expansion into one
 record per Examples row with combined tags and distinct titles.
+`test_zero_test_suite.py` (8): every parser degrades to `[]` gracefully on
+an empty or nonexistent test directory / empty run report, never raises.
