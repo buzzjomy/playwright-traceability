@@ -97,3 +97,23 @@ class SourceTestRecord(Base):
     column: Mapped[int] = mapped_column()
     tags: Mapped[list] = mapped_column(JSON, default=list)
     jira_keys: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class JiraWebhookEvent(Base):
+    """One received Jira webhook delivery (issue #10).
+
+    Just a durable record of "this happened" - issue #17 (drift
+    detection) is what will actually interpret changelog contents and
+    decide whether a linked test should flip to a Suspect state. This
+    table exists so that later work has real history to consume instead
+    of needing to retrofit it.
+    """
+
+    __tablename__ = "jira_webhook_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    received_at: Mapped[datetime] = mapped_column(default=_utcnow)
+    issue_key: Mapped[str] = mapped_column(String)
+    webhook_event: Mapped[str] = mapped_column(String)
+    changelog: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    raw_payload: Mapped[dict] = mapped_column(JSON)

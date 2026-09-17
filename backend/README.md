@@ -47,6 +47,8 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `DELETE` | `/api/jira/connection` | Remove the current connection, if any. |
 | `GET` | `/api/jira/requirements?project_key=KAN` | Pull every Story/Task (configurable via `issue_types`) in a Jira project as `{key, summary, description_text, acceptance_criteria}`. Live-fetches from Jira every call, no caching yet. |
 | `POST` | `/api/ingest/run` | Ingest test inventory data (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
+| `POST` | `/api/webhooks/jira?token=...` | Receive a Jira webhook event (see below). Requires `?token=<JIRA_WEBHOOK_SECRET>`. |
+| `GET` | `/api/webhooks/jira/events` | List recently received webhook events, newest first. Not authenticated (read-only, local-only use). |
 
 ## Pushing test inventory data
 
@@ -169,6 +171,45 @@ mocks): pulled all 10 `demo/google-search` stories with their exact
 Acceptance Criteria intact, plus Jira's own default onboarding tasks
 (correctly showing `acceptance_criteria: []`, since they don't use the
 heading convention).
+
+## Receiving Jira webhook events (issue #10)
+
+`POST /api/webhooks/jira?token=...` receives Jira webhook deliveries
+(e.g. `jira:issue_updated`) and records them in `jira_webhook_events` for
+issue #17 (drift detection) to consume later. It doesn't itself decide
+anything changed or flip any Suspect state — it's purely a durable log of
+"this happened."
+
+**Real, significant finding:** Jira Cloud's webhook self-registration REST
+API (`POST /rest/api/3/webhook`) **rejects Basic Auth outright** — tested
+against the real pwtrace.atlassian.net site, it returns `403 "Only Connect
+and OAuth 2.0 apps can use this operation."` This directly conflicts with
+the API-token auth chosen for issue #6 (specifically to avoid needing a
+registered app + public redirect URI). There's no way around this without
+either building OAuth 2.0 now or using a different registration path.
+
+**The path taken:** Jira Cloud still supports the older "classic" webhooks
+feature, configured manually by a Jira admin — no OAuth needed:
+
+1. In Jira: **Settings → System → WebHooks → Create a WebHook**
+2. URL: `https://your-backend.example.com/api/webhooks/jira?token=<JIRA_WEBHOOK_SECRET>`
+   (optionally with a JQL filter, e.g. `project = KAN`)
+3. Events: check **Issue → updated**
+
+The secret is a **query param, not a header** — the classic webhook admin
+UI only lets you configure a plain URL, with no way to add custom headers,
+so the shared secret is embedded directly in the URL instead. The endpoint
+fails closed (`500`) if `JIRA_WEBHOOK_SECRET` isn't configured on the
+server at all.
+
+**Verified with a real webhook delivery**, not just a synthetic payload:
+tunneled a local backend to the internet with `ngrok`, registered it as a
+classic webhook against the real pwtrace.atlassian.net site, edited
+KAN-4's description for real, and confirmed the exact payload arrived and
+was recorded correctly — including the real `changelog.items[].fromString`
+/`toString` diff. The payload shape (`webhookEvent`, `issue.key`,
+`changelog.items`) matched Atlassian's documented format exactly, so no
+code changes were needed after seeing the real delivery.
 
 ## Design notes for whoever picks up the next issue
 

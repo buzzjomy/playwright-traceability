@@ -1,10 +1,11 @@
 """FastAPI app for the playwright-traceability backend.
 
-Covers Milestone 2, issues #6 (Jira Cloud auth + connection setup) and #7
-(pulling requirement/story data), plus Milestone 1, issue #5 (an ingest
-endpoint for the CLI/GitHub Action snippet at
-scripts/push_test_inventory.py to push parsed test inventory data to).
-Later issues (linking tests, the dashboard) build on this same app.
+Covers Milestone 2, issues #6 (Jira Cloud auth + connection setup), #7
+(pulling requirement/story data), and #10 (receiving Jira webhook events),
+plus Milestone 1, issue #5 (an ingest endpoint for the CLI/GitHub Action
+snippet at scripts/push_test_inventory.py to push parsed test inventory
+data to). Later issues (linking tests, the dashboard) build on this same
+app.
 
 Run locally with:
     uvicorn backend.main:app --reload
@@ -18,17 +19,19 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.auth import require_ingest_api_key
+from backend.auth import require_ingest_api_key, require_webhook_token
 from backend.db import get_db, init_db
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirements
-from backend.models import JiraConnection, SourceTestRecord, TestRun, TestRunRecord
+from backend.models import JiraConnection, JiraWebhookEvent, SourceTestRecord, TestRun, TestRunRecord
 from backend.schemas import (
     IngestRunRequest,
     IngestRunResponse,
     JiraConnectionCreate,
     JiraConnectionStatus,
     JiraRequirementsResponse,
+    JiraWebhookAck,
+    JiraWebhookEventOut,
 )
 
 
@@ -173,3 +176,50 @@ def ingest_run(payload: IngestRunRequest, db: Session = Depends(get_db)) -> Inge
 
     db.commit()
     return response
+
+
+@app.post("/api/webhooks/jira", response_model=JiraWebhookAck, dependencies=[Depends(require_webhook_token)])
+def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWebhookAck:
+    """Receive one Jira webhook delivery (issue #10), e.g. jira:issue_updated.
+
+    Jira Cloud's webhook self-registration REST API (POST
+    /rest/api/3/webhook) rejects Basic Auth outright - confirmed against a
+    real site, it returns 403 "Only Connect and OAuth 2.0 apps can use
+    this operation." So this endpoint is meant to be registered manually
+    by a Jira admin via Settings > System > WebHooks (the older "classic"
+    webhook feature), which needs no OAuth - see backend/README.md for the
+    exact setup steps and why the secret is a query param, not a header.
+
+    This just records the event; it doesn't itself decide anything
+    changed or flip any Suspect state - that's issue #17 (drift
+    detection), which will read from this table.
+    """
+    issue = payload.get("issue") or {}
+    webhook_event = payload.get("webhookEvent", "")
+
+    event = JiraWebhookEvent(
+        issue_key=issue.get("key", ""),
+        webhook_event=webhook_event,
+        changelog=payload.get("changelog"),
+        raw_payload=payload,
+    )
+    db.add(event)
+    db.commit()
+
+    return JiraWebhookAck(received=True, issue_key=event.issue_key, webhook_event=webhook_event)
+
+
+@app.get("/api/webhooks/jira/events", response_model=list[JiraWebhookEventOut])
+def list_jira_webhook_events(limit: int = Query(default=50, le=200), db: Session = Depends(get_db)) -> list[JiraWebhookEvent]:
+    """List the most recently received webhook events, newest first.
+
+    For visibility/debugging while there's no dashboard yet; not
+    authenticated (read-only, local-only use, same posture as the Jira
+    connection endpoints).
+    """
+    return (
+        db.query(JiraWebhookEvent)
+        .order_by(JiraWebhookEvent.received_at.desc())
+        .limit(limit)
+        .all()
+    )

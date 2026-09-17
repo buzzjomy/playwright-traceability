@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, ConfigDict, HttpUrl
 
 
 class JiraConnectionCreate(BaseModel):
@@ -102,3 +102,23 @@ class JiraRequirementsResponse(BaseModel):
 
     project_key: str
     requirements: list[JiraRequirementOut]
+
+
+class JiraWebhookEventOut(BaseModel):
+    """One received webhook event (see JiraWebhookEvent)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    received_at: datetime
+    issue_key: str
+    webhook_event: str
+    changelog: dict | None = None
+
+
+class JiraWebhookAck(BaseModel):
+    """Response body for POST /api/webhooks/jira."""
+
+    received: bool
+    issue_key: str
+    webhook_event: str
