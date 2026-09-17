@@ -133,6 +133,14 @@ class JiraPollResponse(BaseModel):
     polled_at: datetime
 
 
+class TrendPointOut(BaseModel):
+    """One historical run outcome for a test (see TrendPoint.to_dict)."""
+
+    run_id: int
+    pushed_at: datetime
+    status: str
+
+
 class InventoryEntryOut(BaseModel):
     """One reconciled test inventory row (see InventoryEntry.to_dict)."""
 
@@ -145,6 +153,7 @@ class InventoryEntryOut(BaseModel):
     jira_keys: list[str] = []
     in_source: bool
     has_run: bool
+    history: list[TrendPointOut] = []
 
 
 class InventoryResponse(BaseModel):

@@ -141,6 +141,64 @@ def test_only_the_latest_run_per_project_is_used():
     assert entries[0].status == "passed"
 
 
+def test_history_accumulates_across_pushes_oldest_first():
+    db = _db_session()
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "failed")
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "passed")
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "passed")
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    history = entries[0].history
+    assert [point.status for point in history] == ["failed", "passed", "passed"]
+    # oldest first, so run_ids are strictly increasing
+    assert [point.run_id for point in history] == sorted(point.run_id for point in history)
+
+
+def test_history_is_per_project_not_shared_across_projects():
+    db = _db_session()
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "failed")
+    _add_run(db, "auth.spec.ts", "should login", "firefox", "passed")
+    db.commit()
+
+    entries = build_inventory(db)
+
+    by_project = {e.project: e for e in entries}
+    assert [p.status for p in by_project["chromium"].history] == ["failed"]
+    assert [p.status for p in by_project["firefox"].history] == ["passed"]
+
+
+def test_history_is_capped_at_max_history_points():
+    from backend.test_inventory import MAX_HISTORY_POINTS
+
+    db = _db_session()
+    for i in range(MAX_HISTORY_POINTS + 5):
+        status = "passed" if i % 2 == 0 else "failed"
+        _add_run(db, "auth.spec.ts", "should login", "chromium", status)
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    assert len(entries[0].history) == MAX_HISTORY_POINTS
+    # the most recent push (index MAX_HISTORY_POINTS + 4, even -> "passed")
+    # must be the last (most recent) entry kept, not trimmed off
+    assert entries[0].history[-1].status == "passed"
+
+
+def test_source_only_test_has_no_history():
+    db = _db_session()
+    _add_source(db, "auth.spec.ts", "should lock account")
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    assert entries[0].history == []
+
+
 def test_build_inventory_against_real_sample_fixtures():
     # Real parser output (via a real Node subprocess for static_parser),
     # not synthetic data - exercises the actual reconciliation gaps that

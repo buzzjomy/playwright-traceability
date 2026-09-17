@@ -354,6 +354,39 @@ integration-test scratch issue KAN-14), correctly showing 10 covered and
 3 uncovered — the 3 uncovered are exactly the ones with no test linking
 to them.
 
+## Pass/fail trend per test over time (issue #14)
+
+`GET /api/inventory`'s existing `InventoryEntry` (issue #12) gained a
+`history` field rather than this becoming a separate `/api/trends`
+endpoint — the dashboard already renders one row per `(file, title,
+project)`, and every pushed run already lands in `TestRunRecord`
+append-only (it always has, precisely so this issue wouldn't need to
+retrofit history that was never kept), so no new model or ingest change
+was needed, just a different query over data that already existed.
+
+`build_inventory()` used to keep only the *latest* `TestRunRecord` per
+`(file, title, project)` and discard the rest once current status/tags
+were extracted. It now keeps every run per key, sorted oldest-to-newest,
+and turns the most recent `MAX_HISTORY_POINTS` (10) into a list of
+`TrendPoint`s (`run_id`, `pushed_at`, `status`) on that row's `history`
+field — oldest first, so the frontend can render it left-to-right without
+re-sorting. Current `status`/unioned `tags`/`jira_keys` still come from
+only the latest run, unchanged from #12's behavior; `history` is
+additive, not a replacement.
+
+The cap exists because a long-lived suite pushing on every CI run will
+accumulate hundreds or thousands of `TestRunRecord` rows per test over
+time — the dashboard only needs a recent trend, not the full archive, so
+the payload stays bounded regardless of how long a project has been
+running. A source-only entry (`has_run: false`) always has `history: []`,
+since there's nothing to trend.
+
+Verified against real data: pushed `demo/google-search`'s real run report
+four times in a row via `scripts/push_test_inventory.py` against a live
+backend, then confirmed via `GET /api/inventory` that each test's
+`history` grew by one `TrendPoint` per push, in the correct run order,
+with real `pushed_at` timestamps and statuses (not synthetic fixtures).
+
 ## Design notes for whoever picks up the next issue
 
 - This is single-tenant for now — `JiraConnection` is a one-row table,
@@ -385,6 +418,7 @@ to them.
   querying "all tests tagged X" across the DB (not just via the API)
   becomes a real need.
 - Reconciling `TestRunRecord` (from a run) with `SourceTestRecord` (from
-  source) — e.g. "exists in source but never run" — is still deferred, per
-  `README.md`'s design notes; ingest doesn't attempt this, it just stores
-  both streams independently, same as the parsers themselves.
+  source) — e.g. "exists in source but never run" — was picked up in
+  issue #12 (`build_inventory`, above); ingest itself still doesn't
+  attempt this, it just stores both streams independently, same as the
+  parsers themselves — reconciliation happens once at read time.

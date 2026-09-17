@@ -1,6 +1,12 @@
 // Thin fetch wrapper around the backend's read-only GET endpoints used by
 // this dashboard. See backend/main.py for the actual API surface.
 
+export interface TrendPoint {
+  run_id: number;
+  pushed_at: string;
+  status: string;
+}
+
 export interface InventoryEntry {
   file: string;
   title: string;
@@ -11,6 +17,7 @@ export interface InventoryEntry {
   jira_keys: string[];
   in_source: boolean;
   has_run: boolean;
+  history: TrendPoint[];
 }
 
 export interface JiraConnectionStatus {

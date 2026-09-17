@@ -137,13 +137,15 @@ findings this surfaced (a removed search endpoint, webhook
 self-registration needing OAuth, a JQL date-literal bug) and how each was
 verified against the live Jira site, not just mocks.
 
-**Milestone 3 (Traceability Dashboard): in progress, issues #12-#13
+**Milestone 3 (Traceability Dashboard): in progress, issues #12-#14
 done.** First frontend (`frontend/`, Vite + React + TypeScript): a test
 inventory view (issue #12 — this is also where `TestRecord`/
 `StaticTestRecord` reconciliation, mentioned as a design question in
-earlier planning, actually got built: a plain `(file, title)` match) and
-a requirement coverage view (issue #13). Remaining: #14 (pass/fail
-trends over time) and #15 (flaky-test flagging).
+earlier planning, actually got built: a plain `(file, title)` match), a
+requirement coverage view (issue #13), and a per-test pass/fail trend
+(issue #14 — `TestRunRecord`'s already-append-only history rendered as a
+row of colored dots on the inventory table, no new model needed).
+Remaining: #15 (flaky-test flagging).
 
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story

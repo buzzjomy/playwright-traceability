@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchInventory, type InventoryEntry } from './api';
+import { fetchInventory, type InventoryEntry, type TrendPoint } from './api';
 import { JiraKeyLink } from './JiraKeyLink';
 
 function statusLabel(entry: InventoryEntry): string {
@@ -10,6 +10,23 @@ function statusLabel(entry: InventoryEntry): string {
 function statusClassName(entry: InventoryEntry): string {
   if (!entry.has_run) return 'status status-never-run';
   return `status status-${entry.status ?? 'unknown'}`;
+}
+
+// One dot per historical run, oldest first (left) to most recent (right) -
+// mirrors the order build_inventory() already returns history in.
+function TrendDots({ history }: { history: TrendPoint[] }) {
+  if (history.length === 0) return <span>—</span>;
+  return (
+    <span className="trend-dots">
+      {history.map((point) => (
+        <span
+          key={point.run_id}
+          className={`trend-dot trend-dot-${point.status}`}
+          title={`${point.status} — ${new Date(point.pushed_at).toLocaleString()}`}
+        />
+      ))}
+    </span>
+  );
 }
 
 export function InventoryView({ siteUrl }: { siteUrl: string | null }) {
@@ -41,6 +58,7 @@ export function InventoryView({ siteUrl }: { siteUrl: string | null }) {
               <th>File</th>
               <th>Project</th>
               <th>Status</th>
+              <th>Trend</th>
               <th>Tags</th>
               <th>Jira Keys</th>
             </tr>
@@ -54,6 +72,9 @@ export function InventoryView({ siteUrl }: { siteUrl: string | null }) {
                 <td>
                   <span className={statusClassName(entry)}>{statusLabel(entry)}</span>
                   {!entry.in_source && <span className="badge badge-warn">not in source</span>}
+                </td>
+                <td>
+                  <TrendDots history={entry.history} />
                 </td>
                 <td>{entry.tags.join(', ') || '—'}</td>
                 <td>

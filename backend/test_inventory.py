@@ -1,5 +1,6 @@
 """Reconcile run-based and source-based test records into one inventory
-view (Milestone 3, issue #12).
+view (Milestone 3, issue #12), including each test's pass/fail history
+over time (issue #14).
 
 TestRunRecord (from a pushed run) and SourceTestRecord (from a static
 .spec.ts/.feature scan) have been independent, unreconciled streams since
@@ -22,10 +23,33 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from backend.models import SourceTestRecord, TestRunRecord
+from backend.models import SourceTestRecord, TestRun, TestRunRecord
+
+# History is capped per (file, title, project) so the inventory payload
+# stays bounded as a suite accumulates hundreds of pushed runs over time -
+# the dashboard only needs a recent trend, not the entire run archive.
+MAX_HISTORY_POINTS = 10
+
+
+@dataclass
+class TrendPoint:
+    """One historical run outcome for a single (file, title, project) test."""
+
+    run_id: int
+    pushed_at: datetime
+    status: str
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable dict representation of this point."""
+        return {
+            "run_id": self.run_id,
+            "pushed_at": self.pushed_at.isoformat(),
+            "status": self.status,
+        }
 
 
 @dataclass
@@ -41,6 +65,7 @@ class InventoryEntry:
     jira_keys: list[str] = field(default_factory=list)
     in_source: bool = False
     has_run: bool = False
+    history: list[TrendPoint] = field(default_factory=list)  # oldest first, most recent last
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable dict representation of this entry."""
@@ -54,6 +79,7 @@ class InventoryEntry:
             "jira_keys": self.jira_keys,
             "in_source": self.in_source,
             "has_run": self.has_run,
+            "history": [point.to_dict() for point in self.history],
         }
 
 
@@ -63,32 +89,36 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
     for record in db.query(SourceTestRecord).all():
         source_by_key[(record.file, record.title)] = record
 
-    # Keep only the latest TestRunRecord per (file, title, project) -
-    # TestRunRecord is append-only across every push, but the inventory
-    # shows current status, not full history (that's issue #14's job).
-    latest_run_by_key: dict[tuple[str, str, str], TestRunRecord] = {}
+    pushed_at_by_run_id: dict[int, datetime] = {run.id: run.pushed_at for run in db.query(TestRun).all()}
+
+    # TestRunRecord is append-only across every push - every row (not just
+    # the latest) is kept here so a per-project trend history can be built,
+    # in run order, and the latest one still drives current status/tags.
+    all_runs_by_key: dict[tuple[str, str, str], list[TestRunRecord]] = defaultdict(list)
     for record in db.query(TestRunRecord).order_by(TestRunRecord.run_id.asc()).all():
-        latest_run_by_key[(record.file, record.title, record.project)] = record
+        all_runs_by_key[(record.file, record.title, record.project)].append(record)
 
     runs_by_test: dict[tuple[str, str], list[TestRunRecord]] = defaultdict(list)
-    for record in latest_run_by_key.values():
-        runs_by_test[(record.file, record.title)].append(record)
+    for records in all_runs_by_key.values():
+        runs_by_test[(records[-1].file, records[-1].title)].append(records[-1])
 
     entries: list[InventoryEntry] = []
     for key in set(source_by_key) | set(runs_by_test):
         file, title = key
         source = source_by_key.get(key)
-        runs = runs_by_test.get(key, [])
+        latest_runs = runs_by_test.get(key, [])
 
         tags = set(source.tags if source else [])
         jira_keys = set(source.jira_keys if source else [])
-        for run in runs:
+        for run in latest_runs:
             tags |= set(run.tags)
             jira_keys |= set(run.jira_keys)
 
-        full_title = (runs[0].full_title if runs else None) or (source.full_title if source else title)
+        full_title = (latest_runs[0].full_title if latest_runs else None) or (
+            source.full_title if source else title
+        )
 
-        if not runs:
+        if not latest_runs:
             entries.append(
                 InventoryEntry(
                     file=file,
@@ -103,7 +133,11 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
                 )
             )
         else:
-            for run in sorted(runs, key=lambda r: r.project):
+            for run in sorted(latest_runs, key=lambda r: r.project):
+                history = [
+                    TrendPoint(run_id=r.run_id, pushed_at=pushed_at_by_run_id[r.run_id], status=r.status)
+                    for r in all_runs_by_key[(run.file, run.title, run.project)][-MAX_HISTORY_POINTS:]
+                ]
                 entries.append(
                     InventoryEntry(
                         file=file,
@@ -115,6 +149,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
                         jira_keys=sorted(jira_keys),
                         in_source=source is not None,
                         has_run=True,
+                        history=history,
                     )
                 )
 

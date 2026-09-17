@@ -156,6 +156,37 @@ h1 {
   color: #fdba74;
 }
 
+.trend-dots {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.trend-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #4b5563;
+}
+
+.trend-dot-passed {
+  background: #22c55e;
+}
+
+.trend-dot-failed,
+.trend-dot-unexpected,
+.trend-dot-timedOut {
+  background: #ef4444;
+}
+
+.trend-dot-flaky {
+  background: #f59e0b;
+}
+
+.trend-dot-skipped {
+  background: #6b7280;
+}
+
 .jira-key-wrapper {
   margin-right: 0.4rem;
 }
