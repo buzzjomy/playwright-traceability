@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "description": "Demo Playwright project testing google.com, used as realistic data for testing Milestone 2 issue #7 (pulling Jira requirement/story data) against real Jira stories KAN-4..KAN-13.",
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "1.63.0"
   }
 }
