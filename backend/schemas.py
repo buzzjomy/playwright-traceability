@@ -151,3 +151,22 @@ class InventoryResponse(BaseModel):
     """Response body for GET /api/inventory."""
 
     entries: list[InventoryEntryOut]
+
+
+class CoverageEntryOut(BaseModel):
+    """One requirement's test coverage (see CoverageEntry.to_dict)."""
+
+    key: str
+    summary: str
+    linked_test_count: int
+    covered: bool
+
+
+class CoverageResponse(BaseModel):
+    """Response body for GET /api/coverage."""
+
+    project_key: str
+    requirements: list[CoverageEntryOut]
+    total: int
+    covered: int
+    uncovered: int

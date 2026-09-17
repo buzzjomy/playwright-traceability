@@ -21,10 +21,29 @@ export interface JiraConnectionStatus {
   display_name: string | null;
 }
 
+export interface CoverageEntry {
+  key: string;
+  summary: string;
+  linked_test_count: number;
+  covered: boolean;
+}
+
+export interface CoverageResponse {
+  project_key: string;
+  requirements: CoverageEntry[];
+  total: number;
+  covered: number;
+  uncovered: number;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) {
-    throw new Error(`${path} returned ${response.status}`);
+    // FastAPI's HTTPException body is {"detail": "..."} - surface that
+    // when present, since it's usually more useful than a bare status code
+    // (e.g. "No Jira connection configured yet").
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? `${path} returned ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
@@ -35,4 +54,8 @@ export function fetchInventory(): Promise<{ entries: InventoryEntry[] }> {
 
 export function fetchJiraConnection(): Promise<JiraConnectionStatus> {
   return getJson('/api/jira/connection');
+}
+
+export function fetchCoverage(projectKey: string): Promise<CoverageResponse> {
+  return getJson(`/api/coverage?project_key=${encodeURIComponent(projectKey)}`);
 }

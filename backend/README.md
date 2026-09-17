@@ -51,6 +51,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `GET` | `/api/webhooks/jira/events` | List recently received webhook events, newest first. Not authenticated (read-only, local-only use). |
 | `POST` | `/api/jira/poll?project_key=KAN` | Poll Jira for issues changed since the last poll (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 | `GET` | `/api/inventory` | The reconciled test inventory (see below) — what `frontend/`'s dashboard reads. Not authenticated (read-only, local-only use). |
+| `GET` | `/api/coverage?project_key=KAN` | Per-requirement test coverage for a Jira project (see below). Not authenticated (read-only, local-only use). |
 
 ## Pushing test inventory data
 
@@ -328,6 +329,30 @@ logic itself doesn't know or care where a `file` string came from.
 `frontend/` is the first UI in the repo (Vite + React + TypeScript) - see
 its own README for what it renders and how it was verified in a real
 browser, not just typechecked.
+
+## Requirement coverage view (issue #13)
+
+`GET /api/coverage?project_key=KAN` (`backend/requirement_coverage.py`)
+combines a live pull of a Jira project's requirements (issue #7) with the
+reconciled inventory (issue #12): for each requirement, how many
+*distinct* tests reference its key. A requirement with
+`linked_test_count: 0` is `covered: false` — the core signal this view
+exists to surface, per `CLAUDE.md`'s differentiator: knowing a linked
+test exists at all is the prerequisite for the later semantic-gap
+work (Milestone 5), which checks whether a linked test's *content* still
+matches the requirement, not just whether one exists.
+
+Counting is **per distinct `(file, title)` test, not per inventory row**
+— a multi-project test (one row per project, per issue #12's design)
+counts once toward a requirement's coverage, not once per project it ran
+under; two different tests linking the same requirement both count.
+
+Verified against the real Jira `KAN` project + the real, correctly-
+reconciled `demo/google-search` inventory: 13 requirements total (the 10
+real demo stories, Jira's 2 default onboarding tasks, and the dedicated
+integration-test scratch issue KAN-14), correctly showing 10 covered and
+3 uncovered — the 3 uncovered are exactly the ones with no test linking
+to them.
 
 ## Design notes for whoever picks up the next issue
 

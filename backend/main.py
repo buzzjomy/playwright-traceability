@@ -5,8 +5,9 @@ Covers Milestone 2, issues #6 (Jira Cloud auth + connection setup), #7
 #11 (polling fallback for instances without webhook access); Milestone 1,
 issue #5 (an ingest endpoint for the CLI/GitHub Action snippet at
 scripts/push_test_inventory.py to push parsed test inventory data to);
-and Milestone 3, issue #12 (the reconciled test inventory view, the first
-frontend/dashboard work in the repo - see frontend/).
+and Milestone 3, issues #12 (the reconciled test inventory view, the
+first frontend/dashboard work in the repo - see frontend/) and #13 (the
+requirement coverage view).
 
 Run locally with:
     uvicorn backend.main:app --reload
@@ -34,7 +35,9 @@ from backend.models import (
     TestRunRecord,
     utcnow,
 )
+from backend.requirement_coverage import build_coverage
 from backend.schemas import (
+    CoverageResponse,
     IngestRunRequest,
     IngestRunResponse,
     InventoryResponse,
@@ -305,3 +308,40 @@ def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
     GET endpoints).
     """
     return InventoryResponse(entries=[e.to_dict() for e in build_inventory(db)])
+
+
+@app.get("/api/coverage", response_model=CoverageResponse)
+def get_requirement_coverage(
+    project_key: str,
+    issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
+    db: Session = Depends(get_db),
+) -> CoverageResponse:
+    """Return per-requirement test coverage for a Jira project (issue #13).
+
+    Combines a live pull of the project's requirements (see
+    /api/jira/requirements) with the reconciled test inventory (issue
+    #12) - a requirement with linked_test_count 0 has no test verifying
+    it at all. Requires a Jira connection to already be set up via POST
+    /api/jira/connection. Not authenticated (read-only, local-only use).
+    """
+    connection = db.query(JiraConnection).first()
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+
+    client = JiraClient(connection.site_url, connection.email, connection.api_token)
+    types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
+    inventory_entries = build_inventory(db)
+
+    try:
+        coverage = build_coverage(client, project_key, inventory_entries, issue_types=types)
+    except JiraAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    covered_count = sum(1 for c in coverage if c.covered)
+    return CoverageResponse(
+        project_key=project_key,
+        requirements=[c.to_dict() for c in coverage],
+        total=len(coverage),
+        covered=covered_count,
+        uncovered=len(coverage) - covered_count,
+    )
