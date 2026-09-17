@@ -1,9 +1,10 @@
 """FastAPI app for the playwright-traceability backend.
 
-Currently covers Milestone 2, issue #6: authenticating against a Jira
-Cloud site (email + API token) and persisting that connection. Later
-issues (pulling requirement data, linking tests, the dashboard) build on
-this same app.
+Covers Milestone 2, issue #6 (Jira Cloud auth + connection setup) and
+Milestone 1, issue #5 (an ingest endpoint for the CLI/GitHub Action
+snippet at scripts/push_test_inventory.py to push parsed test inventory
+data to). Later issues (pulling requirement data, linking tests, the
+dashboard) build on this same app.
 
 Run locally with:
     uvicorn backend.main:app --reload
@@ -17,10 +18,16 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.auth import require_ingest_api_key
 from backend.db import get_db, init_db
 from backend.jira_client import JiraAuthError, JiraClient
-from backend.models import JiraConnection
-from backend.schemas import JiraConnectionCreate, JiraConnectionStatus
+from backend.models import JiraConnection, SourceTestRecord, TestRun, TestRunRecord
+from backend.schemas import (
+    IngestRunRequest,
+    IngestRunResponse,
+    JiraConnectionCreate,
+    JiraConnectionStatus,
+)
 
 
 @asynccontextmanager
@@ -93,3 +100,44 @@ def delete_jira_connection(db: Session = Depends(get_db)) -> None:
     """Remove the current Jira connection, if any."""
     db.query(JiraConnection).delete()
     db.commit()
+
+
+def _replace_source_records(db: Session, source_type: str, records: list) -> int:
+    """Wipe and re-insert every SourceTestRecord of one source_type ("static"
+    or "feature"), leaving the other source_type's rows untouched."""
+    db.query(SourceTestRecord).filter(SourceTestRecord.source_type == source_type).delete()
+    for record in records:
+        db.add(SourceTestRecord(source_type=source_type, **record.model_dump()))
+    return len(records)
+
+
+@app.post("/api/ingest/run", response_model=IngestRunResponse, dependencies=[Depends(require_ingest_api_key)])
+def ingest_run(payload: IngestRunRequest, db: Session = Depends(get_db)) -> IngestRunResponse:
+    """Ingest test inventory data pushed by scripts/push_test_inventory.py.
+
+    Each of run_report/static_specs/features is independently optional -
+    see IngestRunRequest's docstring for the None-vs-[] semantics. Run
+    report data is always appended as a new TestRun (kept for future trend
+    queries); static/feature source data replaces the prior snapshot for
+    just that source_type.
+    """
+    response = IngestRunResponse()
+
+    if payload.run_report is not None:
+        run = TestRun()
+        db.add(run)
+        db.flush()  # assigns run.id without committing yet
+        for record in payload.run_report:
+            db.add(TestRunRecord(run_id=run.id, **record.model_dump()))
+        response.run_id = run.id
+        response.pushed_at = run.pushed_at
+        response.run_report_count = len(payload.run_report)
+
+    if payload.static_specs is not None:
+        response.static_specs_count = _replace_source_records(db, "static", payload.static_specs)
+
+    if payload.features is not None:
+        response.features_count = _replace_source_records(db, "feature", payload.features)
+
+    db.commit()
+    return response
