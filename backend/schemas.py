@@ -86,3 +86,19 @@ class IngestRunResponse(BaseModel):
     run_report_count: int | None = None
     static_specs_count: int | None = None
     features_count: int | None = None
+
+
+class JiraRequirementOut(BaseModel):
+    """One requirement/story pulled from Jira (see JiraRequirement.to_dict)."""
+
+    key: str
+    summary: str
+    description_text: str
+    acceptance_criteria: list[str] = []
+
+
+class JiraRequirementsResponse(BaseModel):
+    """Response body for GET /api/jira/requirements."""
+
+    project_key: str
+    requirements: list[JiraRequirementOut]

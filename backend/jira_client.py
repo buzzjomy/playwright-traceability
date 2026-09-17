@@ -28,12 +28,13 @@ class JiraClient:
         self.site_url = site_url.rstrip("/")
         self._auth = (email, api_token)
 
-    def _get(self, path: str) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         """Issue a GET request against this Jira site and return the parsed JSON body."""
         response = requests.get(
             f"{self.site_url}{path}",
             auth=self._auth,
             headers={"Accept": "application/json"},
+            params=params,
             timeout=_TIMEOUT_SECONDS,
         )
         if response.status_code == 401:
@@ -44,3 +45,31 @@ class JiraClient:
     def get_current_user(self) -> dict:
         """Call /myself to both validate credentials and identify the connected account."""
         return self._get("/rest/api/3/myself")
+
+    def search_issues(self, jql: str, fields: list[str] | None = None) -> list[dict]:
+        """Return every issue matching a JQL query, paging via nextPageToken.
+
+        Uses /rest/api/3/search/jql - Jira Cloud removed the older
+        /rest/api/3/search endpoint (confirmed against a real site,
+        pwtrace.atlassian.net, on 2026-09-17: it now returns an error
+        telling callers to migrate). That endpoint's cursor-based
+        pagination (nextPageToken/isLast) replaces the old startAt/total
+        offset pagination.
+        """
+        fields = fields or ["summary", "description", "issuetype"]
+        issues: list[dict] = []
+        page_token: str | None = None
+
+        while True:
+            params = {"jql": jql, "maxResults": 100, "fields": ",".join(fields)}
+            if page_token:
+                params["nextPageToken"] = page_token
+
+            page = self._get("/rest/api/3/search/jql", params=params)
+            issues.extend(page["issues"])
+
+            if page.get("isLast", True):
+                break
+            page_token = page["nextPageToken"]
+
+        return issues

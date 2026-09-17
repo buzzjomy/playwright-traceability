@@ -45,6 +45,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `POST` | `/api/jira/connection` | Validate the given `{site_url, email, api_token}` against the real Jira API, then store it. Replaces any existing connection. Returns `401` if Jira rejects the credentials. |
 | `GET` | `/api/jira/connection` | Return the current connection's status, re-validated live against Jira. Never returns the stored API token. |
 | `DELETE` | `/api/jira/connection` | Remove the current connection, if any. |
+| `GET` | `/api/jira/requirements?project_key=KAN` | Pull every Story/Task (configurable via `issue_types`) in a Jira project as `{key, summary, description_text, acceptance_criteria}`. Live-fetches from Jira every call, no caching yet. |
 | `POST` | `/api/ingest/run` | Ingest test inventory data (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 
 ## Pushing test inventory data
@@ -107,6 +108,32 @@ was never kept in the first place. `static_specs` and `features` are
 equivalent need to keep historical versions of "what the source currently
 looks like," just the latest snapshot.
 
+## Pulling requirement/story data (issue #7)
+
+`GET /api/jira/requirements?project_key=KAN` pulls every Story/Task in a
+project and parses out (key, summary, description, acceptance criteria).
+
+**Real, non-obvious finding:** there's no dedicated "Acceptance Criteria"
+field on a standard Jira Cloud site — confirmed against a real project,
+`demo/google-search`'s own KAN-4..KAN-13 stories. Teams write ACs as a
+heading (e.g. "Acceptance Criteria") followed by a bullet list inside the
+description, same as this repo did when creating that demo data. That's
+the convention `jira_requirements.py` parses; an issue with a plain
+description and no such heading just gets `acceptance_criteria: []`.
+
+**Also confirmed against a real site:** the classic `GET /rest/api/3/search`
+endpoint has been **removed** by Atlassian — it now returns an error
+telling callers to migrate to `/rest/api/3/search/jql`, which uses
+cursor-based pagination (`nextPageToken`/`isLast`) instead of the old
+`startAt`/`total` offset pagination. `JiraClient.search_issues` handles
+this paging automatically.
+
+Verified end-to-end against the real pwtrace.atlassian.net site (not just
+mocks): pulled all 10 `demo/google-search` stories with their exact
+Acceptance Criteria intact, plus Jira's own default onboarding tasks
+(correctly showing `acceptance_criteria: []`, since they don't use the
+heading convention).
+
 ## Design notes for whoever picks up the next issue
 
 - This is single-tenant for now — `JiraConnection` is a one-row table,
@@ -117,9 +144,13 @@ looks like," just the latest snapshot.
   for a solo builder's own local MVP; this is a known gap to close (e.g.
   encryption at rest) before any multi-user or production deployment.
 - `GET`/`DELETE` don't require re-sending credentials — they operate on
-  whatever's already stored. `jira_client.JiraClient` is the reusable piece
-  for issue #7 (pulling requirement/story data): construct it from a stored
-  `JiraConnection` row and add methods alongside `get_current_user`.
+  whatever's already stored.
+- `/api/jira/requirements` live-fetches from Jira on every call — no
+  caching or persistence yet (deliberately out of scope for #7; that's
+  really issues #16/#17/#18's territory - hashing fields, drift detection,
+  the Covered/Suspect/Stale/Orphaned link-state model).
+- Default issue types pulled are `Story` and `Task` (not `Epic` or
+  `Subtask`) - overridable via `?issue_types=Epic,Bug`.
 - Tests mock `requests.get`/`requests.post` directly (`unittest.mock.patch`)
   rather than pulling in a dedicated HTTP-mocking library — matches this
   repo's preference for stdlib over new dependencies where it's simple
