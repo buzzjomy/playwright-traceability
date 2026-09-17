@@ -156,6 +156,11 @@ h1 {
   color: #fdba74;
 }
 
+.badge-flaky {
+  background: #78350f;
+  color: #fde68a;
+}
+
 .trend-dots {
   display: inline-flex;
   gap: 0.2rem;

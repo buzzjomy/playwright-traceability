@@ -72,6 +72,7 @@ export function InventoryView({ siteUrl }: { siteUrl: string | null }) {
                 <td>
                   <span className={statusClassName(entry)}>{statusLabel(entry)}</span>
                   {!entry.in_source && <span className="badge badge-warn">not in source</span>}
+                  {entry.is_flaky && <span className="badge badge-flaky">flaky</span>}
                 </td>
                 <td>
                   <TrendDots history={entry.history} />

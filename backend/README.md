@@ -387,6 +387,29 @@ backend, then confirmed via `GET /api/inventory` that each test's
 `history` grew by one `TrendPoint` per push, in the correct run order,
 with real `pushed_at` timestamps and statuses (not synthetic fixtures).
 
+## Flaky-test flagging (issue #15)
+
+"Flaky" here means what the issue title specifies: pass+fail on the
+*same* commit across Playwright's own reruns within one CI run — not
+a test whose result changes between separate pushes over time (that's
+what the trend history from issue #14 already shows). That data already
+existed: `parser.report_parser` has parsed Playwright's own `test.status
+== "flaky"` into `TestRecord.is_flaky` (and `TestRunRecord.is_flaky` in
+the DB) since Milestone 1 — it just wasn't surfaced anywhere in the
+dashboard yet.
+
+`InventoryEntry` gained an `is_flaky` field, taken from the *latest* run
+only (same rule as `status`/`tags` — a later, clean push clears it,
+consistent with "flaky" describing that specific run's retries, not a
+sticky historical label). A source-only entry (`has_run: false`) is
+never flaky, since there's no run to have retried.
+
+Verified against real data: `demo/google-search`'s "Images tab displays
+a grid of image thumbnails" genuinely failed then passed on retry
+against live Google in one real run — Playwright itself marked it
+`test.status: "flaky"`, and `is_flaky: true` came through correctly via
+`GET /api/inventory` and rendered as a badge in the dashboard.
+
 ## Design notes for whoever picks up the next issue
 
 - This is single-tenant for now — `JiraConnection` is a one-row table,

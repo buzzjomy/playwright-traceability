@@ -17,7 +17,7 @@ def _add_source(db, file, title, full_title=None, tags=None, jira_keys=None, sou
     )
 
 
-def _add_run(db, file, title, project, status, full_title=None, tags=None, jira_keys=None):
+def _add_run(db, file, title, project, status, full_title=None, tags=None, jira_keys=None, is_flaky=False):
     run = TestRun()
     db.add(run)
     db.flush()
@@ -36,7 +36,7 @@ def _add_run(db, file, title, project, status, full_title=None, tags=None, jira_
             status=status,
             duration_ms=100,
             retry_count=0,
-            is_flaky=False,
+            is_flaky=is_flaky,
             error_message=None,
         )
     )
@@ -197,6 +197,40 @@ def test_source_only_test_has_no_history():
 
     assert len(entries) == 1
     assert entries[0].history == []
+
+
+def test_is_flaky_reflects_the_latest_run():
+    db = _db_session()
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", is_flaky=True)
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    assert entries[0].is_flaky is True
+
+
+def test_is_flaky_uses_only_the_latest_run_not_history():
+    db = _db_session()
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", is_flaky=True)
+    _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", is_flaky=False)  # a later, clean push
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    assert entries[0].is_flaky is False
+
+
+def test_source_only_test_is_not_flaky():
+    db = _db_session()
+    _add_source(db, "auth.spec.ts", "should lock account")
+    db.commit()
+
+    entries = build_inventory(db)
+
+    assert len(entries) == 1
+    assert entries[0].is_flaky is False
 
 
 def test_build_inventory_against_real_sample_fixtures():

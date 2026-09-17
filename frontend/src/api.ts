@@ -18,6 +18,7 @@ export interface InventoryEntry {
   in_source: boolean;
   has_run: boolean;
   history: TrendPoint[];
+  is_flaky: boolean;
 }
 
 export interface JiraConnectionStatus {

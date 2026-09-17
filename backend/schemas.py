@@ -154,6 +154,7 @@ class InventoryEntryOut(BaseModel):
     in_source: bool
     has_run: bool
     history: list[TrendPointOut] = []
+    is_flaky: bool = False
 
 
 class InventoryResponse(BaseModel):

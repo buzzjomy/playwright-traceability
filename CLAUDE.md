@@ -137,15 +137,18 @@ findings this surfaced (a removed search endpoint, webhook
 self-registration needing OAuth, a JQL date-literal bug) and how each was
 verified against the live Jira site, not just mocks.
 
-**Milestone 3 (Traceability Dashboard): in progress, issues #12-#14
-done.** First frontend (`frontend/`, Vite + React + TypeScript): a test
-inventory view (issue #12 — this is also where `TestRecord`/
-`StaticTestRecord` reconciliation, mentioned as a design question in
-earlier planning, actually got built: a plain `(file, title)` match), a
-requirement coverage view (issue #13), and a per-test pass/fail trend
-(issue #14 — `TestRunRecord`'s already-append-only history rendered as a
-row of colored dots on the inventory table, no new model needed).
-Remaining: #15 (flaky-test flagging).
+**Milestone 3 (Traceability Dashboard): fully done, issues #12-#15.**
+First frontend (`frontend/`, Vite + React + TypeScript): a test inventory
+view (issue #12 — this is also where `TestRecord`/`StaticTestRecord`
+reconciliation, mentioned as a design question in earlier planning,
+actually got built: a plain `(file, title)` match), a requirement
+coverage view (issue #13), a per-test pass/fail trend (issue #14 —
+`TestRunRecord`'s already-append-only history rendered as a row of
+colored dots on the inventory table, no new model needed), and flaky-run
+flagging (issue #15 — Playwright's own retry-based `test.status ==
+"flaky"`, parsed since Milestone 1 but not surfaced until now).
+Milestone 3 is complete; next up is Milestone 4 (Requirement-Change
+Detection).
 
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story

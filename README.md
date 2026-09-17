@@ -4,10 +4,10 @@
 > the FastAPI service, Jira auth flow, requirement pulling, and JSON
 > mapping-file linking (`parser/mapping_parser.py`, issue #9).
 >
-> Milestone 3 (Traceability Dashboard) is in progress — see `frontend/README.md`
+> Milestone 3 (Traceability Dashboard) is complete — see `frontend/README.md`
 > for the dashboard (test inventory, issue #12; requirement coverage,
-> issue #13; pass/fail trend, issue #14) and `backend/README.md` for the
-> endpoints behind it.
+> issue #13; pass/fail trend, issue #14; flaky-test flagging, issue #15)
+> and `backend/README.md` for the endpoints behind it.
 
 Three complementary parsers, covering the first three issues of Milestone 1:
 
@@ -166,7 +166,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-This runs the whole repo's test suite (139 passing as of Milestone 3,
+This runs the whole repo's test suite (142 passing as of Milestone 3,
 across the parsers here, `backend/`, and the CLI in `scripts/` — see
 `backend/README.md` and `frontend/README.md` for what those add; plus 5
 more real-Jira integration tests, skipped unless credentials are

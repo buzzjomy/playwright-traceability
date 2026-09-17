@@ -5,7 +5,7 @@ The first frontend in this repo, now two views behind a simple tab switch:
 1. **Test Inventory** (issue #12) — one table combining run-based and
    source-based test data (see `backend/test_inventory.py` for the
    reconciliation logic this reads), including a per-test pass/fail
-   trend (issue #14).
+   trend (issue #14) and a flaky-run badge (issue #15).
 2. **Requirement Coverage** (issue #13) — for a given Jira project key,
    which requirements have zero linked tests (see
    `backend/requirement_coverage.py`).
@@ -57,7 +57,10 @@ var to configure for local dev.
   recent (right) — reusing the same pass/failed/flaky color scheme as the
   Status column, via `<title>` tooltips for the exact timestamp/status of
   each point. A test with no run history yet (source-only) just shows
-  `—`.
+  `—`. A `flaky` badge (issue #15) appears under the Status badge when the
+  *latest* run passed only after Playwright itself retried a failure —
+  distinct from the Trend column, which shows outcomes across separate
+  pushes over time, not retries within one run.
 - `src/CoverageView.tsx` — a project-key input (remembered per-viewer via
   `localStorage`, never sent anywhere) plus a table of that project's
   requirements, each showing how many distinct tests link to it and
@@ -78,7 +81,10 @@ running backend seeded via `scripts/push_test_inventory.py`:
   `demo/google-search` data (10 rows, correct pass/fail badges). For
   issue #14, `demo/google-search` was pushed four times in a row against
   a live backend and the Trend column was confirmed to grow by one real
-  dot per push, in the correct left-to-right run order.
+  dot per push, in the correct left-to-right run order. For issue #15,
+  `demo/google-search` was re-run for real against live Google, produced
+  a genuine Playwright-retry flaky result, and the `flaky` badge was
+  confirmed to render on exactly that row.
 - **Coverage**, against the real `KAN` Jira project: 13 requirements (10
   real demo stories + 2 default onboarding tasks + the dedicated
   integration-test scratch issue), correctly showing 10 covered and 3

@@ -1,6 +1,6 @@
 """Reconcile run-based and source-based test records into one inventory
 view (Milestone 3, issue #12), including each test's pass/fail history
-over time (issue #14).
+over time (issue #14) and whether its latest run was flaky (issue #15).
 
 TestRunRecord (from a pushed run) and SourceTestRecord (from a static
 .spec.ts/.feature scan) have been independent, unreconciled streams since
@@ -66,6 +66,7 @@ class InventoryEntry:
     in_source: bool = False
     has_run: bool = False
     history: list[TrendPoint] = field(default_factory=list)  # oldest first, most recent last
+    is_flaky: bool = False  # latest run passed on retry after failing at least once
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable dict representation of this entry."""
@@ -80,6 +81,7 @@ class InventoryEntry:
             "in_source": self.in_source,
             "has_run": self.has_run,
             "history": [point.to_dict() for point in self.history],
+            "is_flaky": self.is_flaky,
         }
 
 
@@ -150,6 +152,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
                         in_source=source is not None,
                         has_run=True,
                         history=history,
+                        is_flaky=run.is_flaky,
                     )
                 )
 
