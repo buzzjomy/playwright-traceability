@@ -38,13 +38,14 @@ def test_parse_args_falls_back_to_env_var_api_key(monkeypatch):
 
 
 def test_build_payload_only_includes_requested_sources():
-    payload = build_payload(report=None, specs_dir=str(SAMPLES_DIR / "sample-specs"), features_dir=None)
+    payload, unmatched = build_payload(report=None, specs_dir=str(SAMPLES_DIR / "sample-specs"), features_dir=None)
     assert set(payload.keys()) == {"static_specs"}
     assert len(payload["static_specs"]) == 6
+    assert unmatched == set()
 
 
 def test_build_payload_with_all_three_sources():
-    payload = build_payload(
+    payload, unmatched = build_payload(
         report=str(SAMPLES_DIR / "sample-report.json"),
         specs_dir=str(SAMPLES_DIR / "sample-specs"),
         features_dir=str(SAMPLES_DIR / "sample-features"),
@@ -52,6 +53,27 @@ def test_build_payload_with_all_three_sources():
     assert len(payload["run_report"]) == 5
     assert len(payload["static_specs"]) == 6
     assert len(payload["features"]) == 4
+    assert unmatched == set()
+
+
+def test_build_payload_applies_mapping_file_additively():
+    # A relative specs_dir, matching how sample-mapping.json's "file" paths
+    # are written (mapping matches on the exact path string the parser
+    # reports back - see parser/mapping_parser.py's docstring).
+    payload, unmatched = build_payload(
+        report=None,
+        specs_dir="samples/sample-specs",
+        features_dir=None,
+        mapping_file=str(SAMPLES_DIR / "sample-mapping.json"),
+    )
+
+    by_title = {r["title"]: r for r in payload["static_specs"]}
+    # Previously unlinked test gets the mapping's key.
+    assert by_title["should reject invalid password"]["jira_keys"] == ["PROJ-150"]
+    # Test already linked via a Trace(...) comment keeps that key AND gets the mapping's.
+    assert by_title["should login with valid credentials"]["jira_keys"] == ["PROJ-101", "PROJ-999"]
+    # The mapping's third entry doesn't match any real test in this fixture.
+    assert unmatched == {("samples/sample-specs/auth.spec.ts", "a test that no longer exists")}
 
 
 def test_main_returns_zero_and_sends_correct_headers_on_success(monkeypatch):

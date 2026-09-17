@@ -70,6 +70,42 @@ triggers (a run report on every test run; a source-inventory scan only
 when `.spec.ts`/`.feature` files change) — omitting a field means "this
 push doesn't concern that data," not "there is none of it."
 
+### JSON mapping-file linking (issue #9)
+
+For teams that don't want `Trace(Jira:...)` comments in their test code at
+all, `--mapping-file` links tests to Jira keys from a standalone JSON file
+instead:
+
+```bash
+python -m scripts.push_test_inventory \
+  --backend-url https://your-backend.example.com \
+  --specs-dir tests/ \
+  --mapping-file jira-mapping.json
+```
+
+```json
+[
+  { "file": "auth.spec.ts", "title": "should login", "jira_keys": ["PROJ-101"] }
+]
+```
+
+Matches by exact `(file, title)` — the `file` must match whatever path the
+parser reports back (e.g. relative to wherever `--specs-dir`/`--report`/
+`--features-dir` was pointed), the same sharp edge already noted for
+`TestRecord`/`StaticTestRecord` reconciliation elsewhere in this repo.
+Mapping keys are **merged into**, not swapped in for, whatever `jira_keys`
+a test already has from tags/annotations/`Trace(...)` comments — a test
+can be linked more than one way at once. A mapping entry that never
+matches any parsed test prints a warning (likely a typo, or a renamed/
+removed test) but doesn't fail the push.
+
+Verified end-to-end (not just mocks): pushed the real `demo/google-search`
+project through this exact CLI with a mapping file that added an extra key
+to a test that already had a `Trace(...)`-equivalent comment, then read
+the resulting DB row directly — both keys were present, every other test
+was untouched, and a deliberately-stale mapping entry printed its warning
+without failing the push.
+
 **Example GitHub Action step** (in a Playwright project's own workflow,
 after the test run):
 

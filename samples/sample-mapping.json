@@ -1,0 +1,17 @@
+[
+  {
+    "file": "samples/sample-specs/auth.spec.ts",
+    "title": "should reject invalid password",
+    "jira_keys": ["PROJ-150"]
+  },
+  {
+    "file": "samples/sample-specs/auth.spec.ts",
+    "title": "should login with valid credentials",
+    "jira_keys": ["PROJ-999"]
+  },
+  {
+    "file": "samples/sample-specs/auth.spec.ts",
+    "title": "a test that no longer exists",
+    "jira_keys": ["PROJ-000"]
+  }
+]
