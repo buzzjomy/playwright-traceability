@@ -4,8 +4,9 @@
 > the FastAPI service, Jira auth flow, requirement pulling, and JSON
 > mapping-file linking (`parser/mapping_parser.py`, issue #9).
 >
-> Milestone 3 (Traceability Dashboard) has started — see `frontend/README.md`
-> for the first UI in the repo (the test inventory view, issue #12).
+> Milestone 3 (Traceability Dashboard) is in progress — see `frontend/README.md`
+> for the dashboard (test inventory, issue #12, and requirement coverage,
+> issue #13) and `backend/README.md` for the endpoints behind it.
 
 Three complementary parsers, covering the first three issues of Milestone 1:
 
@@ -126,8 +127,9 @@ Gherkin 6+ feature) — their scenarios are simply skipped.
   mapping should live in a separate module that imports these, not be
   merged into them. Keeps this parseable/testable standalone.
 - Multi-project specs are intentionally NOT collapsed into one record. If a
-  test passes on chromium but fails on firefox, that's a real signal the
-  dashboard (Milestone 3) needs to show separately, not average away.
+  test passes on chromium but fails on firefox, that's a real signal worth
+  showing separately, not averaging away — and the dashboard (Milestone 3,
+  issue #12) does exactly that, one row per project.
 - The static parser identifies Playwright calls purely by the identifier
   name `test` (`test(...)`, `test.describe(...)`, `test.skip(...)`, etc.),
   not by checking the import source. This is a deliberate MVP tradeoff —
@@ -135,10 +137,14 @@ Gherkin 6+ feature) — their scenarios are simply skipped.
   future issue could tighten this by checking the import statement.
 - Reconciling `TestRecord` (from a run) with `StaticTestRecord` /
   `FeatureTestRecord` (from source) — e.g. to show "exists in source but
-  never run" in the dashboard — is deferred to a later issue; each parser
-  currently produces its own record stream independently. A simple
-  `(file, title)` match is probably sufficient when this is picked up;
-  full formal reconciliation is likely overkill for what Milestone 3 needs.
+  never run" — was picked up in Milestone 3, issue #12, exactly the simple
+  `(file, title)` match anticipated here. It lives in
+  `backend/test_inventory.py` (`build_inventory`), not in this parser
+  layer — these three parsers each still just produce their own
+  independent record stream; reconciliation happens once the data reaches
+  the backend. See `backend/README.md` for the reconciliation rules and a
+  real sharp edge it surfaced (file-path conventions have to match across
+  parser invocations, or nothing reconciles).
 - Zero-test-suite handling (a team with no Playwright tests yet, or none
   matching a given directory) is already graceful at the parser level: all
   three parsers return `[]` rather than raising, for both an empty
@@ -147,8 +153,10 @@ Gherkin 6+ feature) — their scenarios are simply skipped.
   intentional: `report_parser.parse_report_file` *does* raise if the report
   file itself is missing, since "no run report was ever generated" is a
   real, distinct usage error — not the same as "the report says zero
-  tests ran." A dashboard-level "0% coverage, get started" empty state is
-  Milestone 3 work and out of scope until the dashboard exists.
+  tests ran." A dashboard-level "0% coverage, get started" empty state
+  still isn't built — `frontend/`'s two views (issues #12, #13) both
+  render *something* for zero data (an empty table / "no requirements
+  found"), but neither has dedicated onboarding-style empty-state UI yet.
 
 ## Tests
 
@@ -157,7 +165,14 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-40 tests. `test_report_parser.py` (14): nested describe flattening,
+This runs the whole repo's test suite (135 passing as of Milestone 3,
+across the parsers here, `backend/`, and the CLI in `scripts/` — see
+`backend/README.md` and `frontend/README.md` for what those add; plus 5
+more real-Jira integration tests, skipped unless credentials are
+configured, see below). The 40 below are this README's own scope, the
+four parser-level files:
+
+`test_report_parser.py` (14): nested describe flattening,
 multi-project specs, retry/flakiness detection, and Jira key extraction
 across tag/annotation/title sources. `test_static_parser.py` (9): nested
 describe flattening, `test.skip`/`test.describe.skip` capture, dynamic-title
@@ -167,3 +182,7 @@ comments. `test_feature_parser.py` (9): Feature/Scenario tag combination,
 record per Examples row with combined tags and distinct titles.
 `test_zero_test_suite.py` (8): every parser degrades to `[]` gracefully on
 an empty or nonexistent test directory / empty run report, never raises.
+
+A separate real-Jira integration suite (`tests/integration/`) talks to a
+live Jira site instead of mocks and is skipped by default — see its own
+README for why and how to run it.
