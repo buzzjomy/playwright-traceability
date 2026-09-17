@@ -49,6 +49,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `POST` | `/api/ingest/run` | Ingest test inventory data (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 | `POST` | `/api/webhooks/jira?token=...` | Receive a Jira webhook event (see below). Requires `?token=<JIRA_WEBHOOK_SECRET>`. |
 | `GET` | `/api/webhooks/jira/events` | List recently received webhook events, newest first. Not authenticated (read-only, local-only use). |
+| `POST` | `/api/jira/poll?project_key=KAN` | Poll Jira for issues changed since the last poll (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 
 ## Pushing test inventory data
 
@@ -210,6 +211,47 @@ was recorded correctly — including the real `changelog.items[].fromString`
 /`toString` diff. The payload shape (`webhookEvent`, `issue.key`,
 `changelog.items`) matched Atlassian's documented format exactly, so no
 code changes were needed after seeing the real delivery.
+
+## Polling fallback (issue #11)
+
+For Jira instances/networks that can't deliver webhooks at all (no admin
+access to configure one, a firewall blocking inbound requests to a
+self-hosted backend, etc), `POST /api/jira/poll?project_key=KAN` polls
+Jira's search API instead, on whatever interval an external scheduler
+(cron, a scheduled GitHub Action) triggers it — there's no in-process
+background scheduler here, same posture as `scripts/push_test_inventory.py`.
+It tracks the last successful poll per project (`JiraPollState`) and
+records one `JiraWebhookEvent` per changed issue found
+(`webhook_event: "jira:issue_polled"`, `changelog: null` — a JQL search
+returns each issue's current state, not a field-level diff, so polled
+events are lower-fidelity than real webhook deliveries by design).
+
+**Major real finding — this one required fixing after first getting it
+wrong.** The original implementation built an absolute JQL date literal
+(`updated >= "2026-09-17 07:28"`) from the last poll's timestamp. Verified
+against the real pwtrace.atlassian.net site: **every absolute time-of-day
+JQL literal silently matched zero issues**, whether or not it included
+seconds, at any hour tried (`06:00`, `10:00`, `12:58`, all failed) — only
+an exact-midnight date-only literal (`"2026-09-17 00:00"`) or a *relative*
+literal (`"-1h"`, `"-5m"`) worked. There was no error; it just silently
+found nothing, which would have made every real poll after the first a
+silent no-op forever.
+
+**The fix:** `jira_polling.format_jql_relative_window` computes the
+elapsed time between the last poll and now, and expresses it as Jira's
+own relative-time syntax (`"-45m"`) instead of an absolute timestamp —
+sidestepping the bug entirely, and any timezone-conversion ambiguity
+along with it, since a relative literal needs no timezone context.
+Rounds up to the nearest whole minute (floored at 1 minute) so a partial
+minute is never silently dropped.
+
+**Verified for real, after the fix**, not just against mocks: ran a real
+poll cycle against the live Jira site — baseline poll, a real edit to a
+KAN issue via the actual Jira API, then a second poll a few seconds later
+— and confirmed the edited issue was correctly detected and recorded.
+Caught and fixed the absolute-literal bug the same way, by testing against
+the real site first and finding the first version silently missed a real
+edit before shipping it.
 
 ## Design notes for whoever picks up the next issue
 

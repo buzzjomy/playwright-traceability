@@ -122,3 +122,12 @@ class JiraWebhookAck(BaseModel):
     received: bool
     issue_key: str
     webhook_event: str
+
+
+class JiraPollResponse(BaseModel):
+    """Response body for POST /api/jira/poll."""
+
+    project_key: str
+    is_first_poll: bool
+    changed_issue_count: int
+    polled_at: datetime

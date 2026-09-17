@@ -1,8 +1,9 @@
 """FastAPI app for the playwright-traceability backend.
 
 Covers Milestone 2, issues #6 (Jira Cloud auth + connection setup), #7
-(pulling requirement/story data), and #10 (receiving Jira webhook events),
-plus Milestone 1, issue #5 (an ingest endpoint for the CLI/GitHub Action
+(pulling requirement/story data), #10 (receiving Jira webhook events), and
+#11 (polling fallback for instances without webhook access), plus
+Milestone 1, issue #5 (an ingest endpoint for the CLI/GitHub Action
 snippet at scripts/push_test_inventory.py to push parsed test inventory
 data to). Later issues (linking tests, the dashboard) build on this same
 app.
@@ -22,13 +23,23 @@ from sqlalchemy.orm import Session
 from backend.auth import require_ingest_api_key, require_webhook_token
 from backend.db import get_db, init_db
 from backend.jira_client import JiraAuthError, JiraClient
+from backend.jira_polling import poll_for_changes
 from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirements
-from backend.models import JiraConnection, JiraWebhookEvent, SourceTestRecord, TestRun, TestRunRecord
+from backend.models import (
+    JiraConnection,
+    JiraPollState,
+    JiraWebhookEvent,
+    SourceTestRecord,
+    TestRun,
+    TestRunRecord,
+    utcnow,
+)
 from backend.schemas import (
     IngestRunRequest,
     IngestRunResponse,
     JiraConnectionCreate,
     JiraConnectionStatus,
+    JiraPollResponse,
     JiraRequirementsResponse,
     JiraWebhookAck,
     JiraWebhookEventOut,
@@ -222,4 +233,60 @@ def list_jira_webhook_events(limit: int = Query(default=50, le=200), db: Session
         .order_by(JiraWebhookEvent.received_at.desc())
         .limit(limit)
         .all()
+    )
+
+
+@app.post("/api/jira/poll", response_model=JiraPollResponse, dependencies=[Depends(require_ingest_api_key)])
+def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> JiraPollResponse:
+    """Poll Jira for issues changed since the last poll (issue #11).
+
+    Meant to be triggered periodically by an external scheduler (cron, a
+    scheduled GitHub Action, etc.) - there's no in-process background
+    scheduler here, same posture as scripts/push_test_inventory.py.
+    Reuses INGEST_API_KEY auth rather than adding a third shared secret.
+
+    Records one JiraWebhookEvent per changed issue (webhook_event =
+    "jira:issue_polled", changelog = None - a JQL search returns current
+    state, not a diff - see jira_polling.py), so issue #17 (drift
+    detection) can consume poll-sourced and webhook-sourced events
+    through the same table.
+    """
+    connection = db.query(JiraConnection).first()
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+
+    poll_state = db.query(JiraPollState).filter(JiraPollState.project_key == project_key).first()
+    since = poll_state.last_polled_at if poll_state else None
+    # Captured before the search runs, not after, so a change that lands
+    # mid-poll is caught on the *next* poll rather than silently skipped.
+    poll_started_at = utcnow()
+
+    client = JiraClient(connection.site_url, connection.email, connection.api_token)
+    try:
+        changed_issues = poll_for_changes(client, project_key, since, poll_started_at)
+    except JiraAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    for issue in changed_issues:
+        db.add(
+            JiraWebhookEvent(
+                issue_key=issue.get("key", ""),
+                webhook_event="jira:issue_polled",
+                changelog=None,
+                raw_payload=issue,
+            )
+        )
+
+    if poll_state is None:
+        poll_state = JiraPollState(project_key=project_key, last_polled_at=poll_started_at)
+        db.add(poll_state)
+    else:
+        poll_state.last_polled_at = poll_started_at
+    db.commit()
+
+    return JiraPollResponse(
+        project_key=project_key,
+        is_first_poll=since is None,
+        changed_issue_count=len(changed_issues),
+        polled_at=poll_started_at,
     )

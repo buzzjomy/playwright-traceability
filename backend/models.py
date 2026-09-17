@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.db import Base
 
 
-def _utcnow() -> datetime:
+def utcnow() -> datetime:
     """Current UTC time, as a plain (non-aware) datetime for DB storage."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -43,7 +43,7 @@ class TestRun(Base):
     __tablename__ = "test_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    pushed_at: Mapped[datetime] = mapped_column(default=_utcnow)
+    pushed_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     records: Mapped[list["TestRunRecord"]] = relationship(back_populates="run", cascade="all, delete-orphan")
 
@@ -112,8 +112,24 @@ class JiraWebhookEvent(Base):
     __tablename__ = "jira_webhook_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    received_at: Mapped[datetime] = mapped_column(default=_utcnow)
+    received_at: Mapped[datetime] = mapped_column(default=utcnow)
     issue_key: Mapped[str] = mapped_column(String)
     webhook_event: Mapped[str] = mapped_column(String)
     changelog: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_payload: Mapped[dict] = mapped_column(JSON)
+
+
+class JiraPollState(Base):
+    """Tracks the last successful poll per Jira project (issue #11's
+    polling fallback, for instances without webhook access).
+
+    One row per project_key so multiple projects can be polled
+    independently, at whatever interval an external scheduler (cron, a
+    scheduled GitHub Action, etc.) triggers POST /api/jira/poll.
+    """
+
+    __tablename__ = "jira_poll_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_key: Mapped[str] = mapped_column(String, unique=True)
+    last_polled_at: Mapped[datetime] = mapped_column()
