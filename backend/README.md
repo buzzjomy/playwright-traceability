@@ -93,11 +93,11 @@ python -m scripts.push_test_inventory \
 ]
 ```
 
-Matches by exact `(file, title)` — the `file` must match whatever path the
-parser reports back (e.g. relative to wherever `--specs-dir`/`--report`/
-`--features-dir` was pointed), the same sharp edge already noted for
-`TestRecord`/`StaticTestRecord` reconciliation elsewhere in this repo.
-Mapping keys are **merged into**, not swapped in for, whatever `jira_keys`
+Matches by exact `(file, title)` — as of the path normalization described
+below, `file` should be written repo-root-relative (e.g.
+`demo/google-search/tests/homepage.spec.ts`), matching what every
+pushed record's `file` now looks like regardless of how each parser was
+invoked. Mapping keys are **merged into**, not swapped in for, whatever `jira_keys`
 a test already has from tags/annotations/`Trace(...)` comments — a test
 can be linked more than one way at once. A mapping entry that never
 matches any parsed test prints a warning (likely a typo, or a renamed/
@@ -147,6 +147,37 @@ was never kept in the first place. `static_specs` and `features` are
 **replaced** on each push (per source type independently): there's no
 equivalent need to keep historical versions of "what the source currently
 looks like," just the latest snapshot.
+
+### File paths are normalized to repo-root-relative before pushing
+
+Discovered as a real bug while manually demoing the dashboard, not in a
+test: `report_parser`'s `file` is relative to Playwright's own `rootDir`
+(e.g. `homepage.spec.ts`), while `static_parser`/`feature_parser`'s `file`
+is relative to whatever `--specs-dir`/`--features-dir` string was passed
+(e.g. `demo/google-search/tests/homepage.spec.ts` if invoked from the repo
+root). Same physical file, two different strings — which silently broke
+`backend/test_inventory.py`'s `(file, title)` reconciliation: every test
+showed up as two unmatched rows instead of one.
+
+The fix, in `scripts/push_test_inventory.py` (`find_repo_root`,
+`normalize_file_path`): every record's `file` is resolved to an absolute
+path and made relative to the repo root (found by walking up from cwd for
+a `.git` directory) before it's ever sent to the backend. For
+`report_parser` records specifically, the report's own `config.rootDir`
+field is used to correctly resolve its rootDir-relative paths first. This
+means callers no longer need to invoke every parser from a consistent
+working directory for reconciliation to work — normalization happens once,
+centrally, regardless of how each one was actually run. A path that can't
+be related to the repo root (e.g. a synthetic fixture with a fake
+`rootDir` like `/repo/tests`) falls back to its original string rather
+than fabricating something wrong.
+
+Verified against the exact real scenario that surfaced the bug: pushed
+`demo/google-search`'s committed `report.json` + a `--specs-dir` pointed
+at it from the repo root (the same invocation that originally produced 20
+unreconciled rows in the live dashboard) and confirmed all 10 tests now
+reconcile correctly — see
+`tests/test_push_test_inventory.py::test_build_payload_normalizes_paths_so_report_and_specs_reconcile`.
 
 ## Pulling requirement/story data (issue #7)
 
@@ -276,19 +307,23 @@ title a static scan can never resolve, or a test since deleted from
 source) still gets its own row rather than being dropped, so the gap
 itself is visible in the dashboard, not hidden.
 
-**The (file, title) match is a real sharp edge, not a hypothetical one.**
-`frontend/`'s dashboard, run against the real `samples/sample-report.json`
-+ `samples/sample-specs` fixtures, visibly shows this: the run-report's
-`file` is rootDir-relative (`auth.spec.ts`), while `static_parser` was
-invoked with `samples/sample-specs` as its root and so reports
-`samples/sample-specs/auth.spec.ts` — different strings, so none of those
-tests reconcile, and the dashboard correctly shows all of them as
-one-sided rows instead of silently merging or dropping anything. A real
-pipeline needs to invoke both parsers with a consistent path convention
-for reconciliation to actually connect them - see
-`tests/test_test_inventory.py::test_reconciliation_requires_matching_file_paths`
-for this made explicit, and `frontend/README.md`'s verification note for
-what it looks like in the actual UI.
+**The (file, title) match was a real sharp edge, not a hypothetical one -
+it broke a live demo, and got fixed as a result.** `frontend/`'s
+dashboard, run against the real `samples/sample-report.json` +
+`samples/sample-specs` fixtures (and again against `demo/google-search`),
+visibly showed every test as two unmatched rows instead of one: the
+run-report's `file` is rootDir-relative (`auth.spec.ts`), while
+`static_parser` was invoked with a different root and so reported the
+longer `demo/google-search/tests/auth.spec.ts` — different strings for
+the same file. This is exactly what led to the path-normalization fix in
+`scripts/push_test_inventory.py` (see "File paths are normalized..."
+above) — `build_inventory` itself still does a plain exact-string
+`(file, title)` match with no fuzziness, but callers no longer need to
+invoke every parser from a consistent working directory to get correct
+paths into it. `tests/test_test_inventory.py::test_reconciliation_requires_matching_file_paths`
+still documents what happens if paths reach the backend unnormalized
+(e.g. via a direct API call rather than the CLI) — the reconciliation
+logic itself doesn't know or care where a `file` string came from.
 
 `frontend/` is the first UI in the repo (Vite + React + TypeScript) - see
 its own README for what it renders and how it was verified in a real

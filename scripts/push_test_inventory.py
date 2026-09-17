@@ -27,19 +27,33 @@ whichever record types were actually requested - see
 parser/mapping_parser.py for the file format and (file, title) matching
 rules. This is additive to whatever jira_keys the parsers already found
 from tags/annotations/Trace(...) comments, not a replacement.
+
+Every record's `file` is normalized to be relative to the repo root
+(detected by walking up from cwd for a `.git` directory) before pushing.
+Without this, report_parser's `file` (relative to Playwright's own
+rootDir) and static_parser/feature_parser's `file` (relative to whatever
+--specs-dir/--features-dir string was passed) can end up as different
+strings for the exact same physical file - e.g. "homepage.spec.ts" vs
+"demo/google-search/tests/homepage.spec.ts" - which silently breaks
+backend/test_inventory.py's (file, title) reconciliation: the same test
+shows up as two unmatched rows instead of one. Normalizing here means
+callers don't have to invoke every parser from a consistent working
+directory to get correct reconciliation.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+from pathlib import Path
 
 import requests
 
 from parser.feature_parser import parse_feature_directory
 from parser.mapping_parser import apply_mapping, load_mapping_file
-from parser.report_parser import parse_report_file
+from parser.report_parser import parse_report
 from parser.static_parser import parse_spec_directory
 
 
@@ -67,6 +81,43 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def find_repo_root(start: Path | None = None) -> Path | None:
+    """Walk upward from `start` (default: cwd) looking for a `.git`
+    directory, returning the first ancestor that has one, or None if not
+    found (e.g. not inside a git checkout at all).
+    """
+    current = (start or Path.cwd()).resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def normalize_file_path(file_path: str, repo_root: Path | None, base_dir: Path | None = None) -> str:
+    """Resolve file_path to an absolute path and make it relative to
+    repo_root, so the same physical file always produces the same
+    string regardless of which directory a parser was invoked from.
+
+    file_path is resolved against base_dir if given and not already
+    absolute (needed for report_parser's paths, which are relative to
+    Playwright's own rootDir, not necessarily cwd). Falls back to the
+    original string unchanged if repo_root is None, or if the resolved
+    path isn't actually under repo_root.
+    """
+    if repo_root is None:
+        return file_path
+
+    path = Path(file_path)
+    if base_dir is not None and not path.is_absolute():
+        path = base_dir / path
+    resolved = path.resolve()
+
+    try:
+        return str(resolved.relative_to(repo_root))
+    except ValueError:
+        return file_path
+
+
 def build_payload(
     report: str | None,
     specs_dir: str | None,
@@ -79,22 +130,42 @@ def build_payload(
     argument was given - matches IngestRunRequest's None-vs-[] semantics
     on the backend (omitted means "don't touch that data").
 
+    Every record's `file` is normalized to be repo-root-relative (see
+    normalize_file_path) before it's included, so reconciliation isn't
+    sensitive to which directory each parser happened to be invoked from.
+
     If mapping_file is given, its Jira keys are merged into every produced
-    record's jira_keys (additive - see parser/mapping_parser.py). Returns
-    (payload, unmatched_mapping_keys) so callers can warn about mapping
-    entries that never matched any parsed test (a likely typo or a
-    renamed/removed test).
+    record's jira_keys (additive - see parser/mapping_parser.py) - after
+    normalization, so a mapping file's own `file` entries should also be
+    repo-root-relative. Returns (payload, unmatched_mapping_keys) so
+    callers can warn about mapping entries that never matched any parsed
+    test (a likely typo or a renamed/removed test).
     """
+    repo_root = find_repo_root()
     record_lists: dict[str, list] = {}
 
     if report is not None:
-        record_lists["run_report"] = parse_report_file(report)
+        with open(report, "r", encoding="utf-8") as f:
+            raw_report = json.load(f)
+        report_root_dir = raw_report.get("config", {}).get("rootDir")
+        base_dir = Path(report_root_dir) if report_root_dir else None
+
+        records = parse_report(raw_report)
+        for record in records:
+            record.file = normalize_file_path(record.file, repo_root, base_dir=base_dir)
+        record_lists["run_report"] = records
 
     if specs_dir is not None:
-        record_lists["static_specs"] = parse_spec_directory(specs_dir)
+        records = parse_spec_directory(specs_dir)
+        for record in records:
+            record.file = normalize_file_path(record.file, repo_root)
+        record_lists["static_specs"] = records
 
     if features_dir is not None:
-        record_lists["features"] = parse_feature_directory(features_dir)
+        records = parse_feature_directory(features_dir)
+        for record in records:
+            record.file = normalize_file_path(record.file, repo_root)
+        record_lists["features"] = records
 
     unmatched: set = set()
     if mapping_file is not None:
