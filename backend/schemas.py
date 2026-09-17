@@ -131,3 +131,23 @@ class JiraPollResponse(BaseModel):
     is_first_poll: bool
     changed_issue_count: int
     polled_at: datetime
+
+
+class InventoryEntryOut(BaseModel):
+    """One reconciled test inventory row (see InventoryEntry.to_dict)."""
+
+    file: str
+    title: str
+    full_title: str
+    project: str | None = None
+    status: str | None = None
+    tags: list[str] = []
+    jira_keys: list[str] = []
+    in_source: bool
+    has_run: bool
+
+
+class InventoryResponse(BaseModel):
+    """Response body for GET /api/inventory."""
+
+    entries: list[InventoryEntryOut]

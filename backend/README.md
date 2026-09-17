@@ -50,6 +50,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `POST` | `/api/webhooks/jira?token=...` | Receive a Jira webhook event (see below). Requires `?token=<JIRA_WEBHOOK_SECRET>`. |
 | `GET` | `/api/webhooks/jira/events` | List recently received webhook events, newest first. Not authenticated (read-only, local-only use). |
 | `POST` | `/api/jira/poll?project_key=KAN` | Poll Jira for issues changed since the last poll (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
+| `GET` | `/api/inventory` | The reconciled test inventory (see below) — what `frontend/`'s dashboard reads. Not authenticated (read-only, local-only use). |
 
 ## Pushing test inventory data
 
@@ -252,6 +253,46 @@ KAN issue via the actual Jira API, then a second poll a few seconds later
 Caught and fixed the absolute-literal bug the same way, by testing against
 the real site first and finding the first version silently missed a real
 edit before shipping it.
+
+## Test inventory view (issue #12)
+
+`GET /api/inventory` (`backend/test_inventory.py`) is the first Milestone
+3 (dashboard) piece, and the first place `TestRunRecord` (from a pushed
+run) and `SourceTestRecord` (from a static `.spec.ts`/`.feature` scan)
+actually get reconciled into one view — they've been independent,
+unreconciled streams since Milestone 1, deferred each time with "a simple
+`(file, title)` match is probably sufficient when picked up." This is
+where that got picked up, and it works exactly as it sounds: a
+`SourceTestRecord` and a `TestRunRecord` are the same test if their `file`
+and `title` match exactly. `tags`/`jira_keys` from both sides are unioned.
+Multi-project runs are **not** collapsed (same principle as `TestRecord`
+itself) — a test that ran under both chromium and firefox produces one
+row per project.
+
+A test found only in source (`in_source: true, has_run: false` —
+skipped, filtered out, or just not part of the pushed run) or only in a
+run (`in_source: false, has_run: true` — e.g. a dynamically-generated
+title a static scan can never resolve, or a test since deleted from
+source) still gets its own row rather than being dropped, so the gap
+itself is visible in the dashboard, not hidden.
+
+**The (file, title) match is a real sharp edge, not a hypothetical one.**
+`frontend/`'s dashboard, run against the real `samples/sample-report.json`
++ `samples/sample-specs` fixtures, visibly shows this: the run-report's
+`file` is rootDir-relative (`auth.spec.ts`), while `static_parser` was
+invoked with `samples/sample-specs` as its root and so reports
+`samples/sample-specs/auth.spec.ts` — different strings, so none of those
+tests reconcile, and the dashboard correctly shows all of them as
+one-sided rows instead of silently merging or dropping anything. A real
+pipeline needs to invoke both parsers with a consistent path convention
+for reconciliation to actually connect them - see
+`tests/test_test_inventory.py::test_reconciliation_requires_matching_file_paths`
+for this made explicit, and `frontend/README.md`'s verification note for
+what it looks like in the actual UI.
+
+`frontend/` is the first UI in the repo (Vite + React + TypeScript) - see
+its own README for what it renders and how it was verified in a real
+browser, not just typechecked.
 
 ## Design notes for whoever picks up the next issue
 

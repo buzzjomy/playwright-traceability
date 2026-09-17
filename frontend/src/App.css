@@ -1,0 +1,109 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  text-align: left;
+}
+
+h1 {
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: #666;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.inventory-table th,
+.inventory-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #333;
+  vertical-align: top;
+}
+
+.inventory-table th {
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.file-cell {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-passed {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+.status-failed,
+.status-unexpected {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+.status-flaky {
+  background: #78350f;
+  color: #fde68a;
+}
+
+.status-never-run,
+.status-skipped {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+}
+
+.badge-warn {
+  background: #451a03;
+  color: #fdba74;
+}
+
+.jira-key-wrapper {
+  margin-right: 0.4rem;
+}
+
+.jira-key {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+a.jira-key {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+a.jira-key:hover {
+  text-decoration: underline;
+}

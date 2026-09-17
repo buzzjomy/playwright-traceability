@@ -1,8 +1,11 @@
 # Playwright Test Inventory Parsers (Milestone 1)
 
-> Milestone 2 (Jira Integration) has started — see `backend/README.md` for
+> Milestone 2 (Jira Integration) is complete — see `backend/README.md` for
 > the FastAPI service, Jira auth flow, requirement pulling, and JSON
 > mapping-file linking (`parser/mapping_parser.py`, issue #9).
+>
+> Milestone 3 (Traceability Dashboard) has started — see `frontend/README.md`
+> for the first UI in the repo (the test inventory view, issue #12).
 
 Three complementary parsers, covering the first three issues of Milestone 1:
 

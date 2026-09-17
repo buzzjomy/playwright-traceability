@@ -2,11 +2,11 @@
 
 Covers Milestone 2, issues #6 (Jira Cloud auth + connection setup), #7
 (pulling requirement/story data), #10 (receiving Jira webhook events), and
-#11 (polling fallback for instances without webhook access), plus
-Milestone 1, issue #5 (an ingest endpoint for the CLI/GitHub Action
-snippet at scripts/push_test_inventory.py to push parsed test inventory
-data to). Later issues (linking tests, the dashboard) build on this same
-app.
+#11 (polling fallback for instances without webhook access); Milestone 1,
+issue #5 (an ingest endpoint for the CLI/GitHub Action snippet at
+scripts/push_test_inventory.py to push parsed test inventory data to);
+and Milestone 3, issue #12 (the reconciled test inventory view, the first
+frontend/dashboard work in the repo - see frontend/).
 
 Run locally with:
     uvicorn backend.main:app --reload
@@ -37,6 +37,7 @@ from backend.models import (
 from backend.schemas import (
     IngestRunRequest,
     IngestRunResponse,
+    InventoryResponse,
     JiraConnectionCreate,
     JiraConnectionStatus,
     JiraPollResponse,
@@ -44,6 +45,7 @@ from backend.schemas import (
     JiraWebhookAck,
     JiraWebhookEventOut,
 )
+from backend.test_inventory import build_inventory
 
 
 @asynccontextmanager
@@ -290,3 +292,16 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
         changed_issue_count=len(changed_issues),
         polled_at=poll_started_at,
     )
+
+
+@app.get("/api/inventory", response_model=InventoryResponse)
+def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
+    """Return the reconciled test inventory (issue #12).
+
+    Combines TestRunRecord (from pushed runs) and SourceTestRecord (from
+    static .spec.ts/.feature scans) by matching (file, title) - see
+    backend/test_inventory.py for the reconciliation rules. Not
+    authenticated (read-only, local-only use, same posture as the other
+    GET endpoints).
+    """
+    return InventoryResponse(entries=[e.to_dict() for e in build_inventory(db)])
