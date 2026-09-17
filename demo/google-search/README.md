@@ -53,12 +53,37 @@ Google's markup has changed since these were written. This is expected
 and fine for this demo's purpose (generating realistic Jira + spec-file
 data), not a target for 100% reliably green CI.
 
+`report.json` in this folder is committed as a real reference run (not
+regenerated on every `git pull`) from 2026-09-17: **6 passed, 4 failed**.
+One failure was Google's actual "unusual traffic" bot-detection page
+(navigated to `/sorry/index` instead of results) - a live example of the
+risk above, not a bug in the test. The other 3 failures are likely
+selector drift against Google's current results-page markup (`Images`
+tab / results-list structure) - worth fixing if this demo needs to be
+reliably green, but left as-is here since a realistic pass/fail mix is
+more useful for testing issue #7 than a synthetic all-green report.
+Re-run `npx playwright test` to get a fresh one; results will likely
+differ.
+
 ## Using this to test issue #7
 
 Once issue #7 (pulling requirement/story data) exists, point it at this
 repo's Jira connection and pull the `KAN` project - these 10 real stories,
-with real descriptions and Acceptance Criteria, are the test data. If
-issue #7 needs a run report too, use `parser.report_parser` /
-`scripts/push_test_inventory.py` against this project's own `report.json`
-after a real (or partial/flaky) run — a mix of pass/fail/blocked results
-is realistic and fine for that purpose.
+with real descriptions and Acceptance Criteria, are the test data. For a
+run report, either use the committed `report.json` directly, or push a
+fresh one with:
+
+```bash
+python -m parser.report_parser demo/google-search/report.json  # inspect it
+python -m scripts.push_test_inventory \
+  --backend-url http://localhost:8000 \
+  --report demo/google-search/report.json \
+  --specs-dir demo/google-search/tests
+```
+
+Note that `report_parser`'s `jira_keys` come back empty for every record
+here - the `// KAN-4` comments only exist in source, so only
+`static_parser` (via `--specs-dir` above) picks them up. That's expected,
+not a bug: it's exactly the "JSON report is primary source of truth for
+run outcomes; static parsing is the enrichment layer for annotations" split
+described in the root `README.md`.

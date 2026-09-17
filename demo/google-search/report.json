@@ -1,0 +1,760 @@
+{
+  "config": {
+    "argv": [
+      "/Users/jomymooken/.nvm/versions/node/v20.20.2/bin/node",
+      "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/node_modules/.bin/playwright",
+      "test"
+    ],
+    "configFile": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/playwright.config.ts",
+    "rootDir": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 5
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json",
+        {
+          "outputFile": "report.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 5,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "homepage.spec.ts",
+      "file": "homepage.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Google homepage",
+          "file": "homepage.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Google homepage displays search box and logo",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4167,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:25.253Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "84e7eb052e8cbae1c9f0-245b23c24fa46161f0bd",
+              "file": "homepage.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "Homepage footer exposes legal and info links",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 4361,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:25.249Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "84e7eb052e8cbae1c9f0-b51015a26d5f9de9eaa8",
+              "file": "homepage.spec.ts",
+              "line": 16,
+              "column": 7
+            },
+            {
+              "title": "Interface language can be changed from the homepage",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 4120,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:25.256Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "84e7eb052e8cbae1c9f0-9d9386d6438de09e043b",
+              "file": "homepage.spec.ts",
+              "line": 30,
+              "column": 7
+            },
+            {
+              "title": "Sign in link is visible for a logged-out visitor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4395,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:25.251Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "84e7eb052e8cbae1c9f0-99090c3c3a58b43458d4",
+              "file": "homepage.spec.ts",
+              "line": 40,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "results-filters.spec.ts",
+      "file": "results-filters.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Search results filters",
+          "file": "results-filters.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "\"I'm Feeling Lucky\" navigates directly to a result",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 5654,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:25.254Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2206b644b8753637a4d-f144ae9920f3ac4a6f5c",
+              "file": "results-filters.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "Search results page shows filter tabs (All, Images, News, Videos)",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 10431,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:26:26",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                          "column": 26,
+                          "line": 26
+                        },
+                        "snippet": "  24 |     const imagesTab = page.getByRole('link', { name: 'Images', exact: true });\n  25 |\n> 26 |     await expect(allTab).toBeVisible();\n     |                          ^\n  27 |     await expect(imagesTab).toBeVisible();\n  28 |\n  29 |     await imagesTab.click();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                            "column": 26,
+                            "line": 26
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n\n\n  24 |     const imagesTab = page.getByRole('link', { name: 'Images', exact: true });\n  25 |\n> 26 |     await expect(allTab).toBeVisible();\n     |                          ^\n  27 |     await expect(imagesTab).toBeVisible();\n  28 |\n  29 |     await imagesTab.click();\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:26:26"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:31.150Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/results-filters-Search-res-bfcf9-abs-All-Images-News-Videos--chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                        "column": 26,
+                        "line": 26
+                      }
+                    },
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 10140,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:26:26",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                          "column": 26,
+                          "line": 26
+                        },
+                        "snippet": "  24 |     const imagesTab = page.getByRole('link', { name: 'Images', exact: true });\n  25 |\n> 26 |     await expect(allTab).toBeVisible();\n     |                          ^\n  27 |     await expect(imagesTab).toBeVisible();\n  28 |\n  29 |     await imagesTab.click();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                            "column": 26,
+                            "line": 26
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('link', { name: 'All', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByRole('link', { name: 'All', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('link', { name: 'All', exact: true })\u001b[22m\n\n\n  24 |     const imagesTab = page.getByRole('link', { name: 'Images', exact: true });\n  25 |\n> 26 |     await expect(allTab).toBeVisible();\n     |                          ^\n  27 |     await expect(imagesTab).toBeVisible();\n  28 |\n  29 |     await imagesTab.click();\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:26:26"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-09-17T06:01:41.907Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/results-filters-Search-res-bfcf9-abs-All-Images-News-Videos--chromium-retry1/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                        "column": 26,
+                        "line": 26
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d2206b644b8753637a4d-3866243f5d303513ea87",
+              "file": "results-filters.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "Images tab displays a grid of image thumbnails",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 10494,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:39:38",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                          "column": 38,
+                          "line": 39
+                        },
+                        "snippet": "  37 |\n  38 |     const thumbnails = page.locator('img[id^=\"dimg_\"]');\n> 39 |     await expect(thumbnails.first()).toBeVisible();\n     |                                      ^\n  40 |     expect(await thumbnails.count()).toBeGreaterThan(1);\n  41 |   });\n  42 | });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                            "column": 38,
+                            "line": 39
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n\n\n  37 |\n  38 |     const thumbnails = page.locator('img[id^=\"dimg_\"]');\n> 39 |     await expect(thumbnails.first()).toBeVisible();\n     |                                      ^\n  40 |     expect(await thumbnails.count()).toBeGreaterThan(1);\n  41 |   });\n  42 | });\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:39:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:31.164Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/results-filters-Search-res-b68f1--a-grid-of-image-thumbnails-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                        "column": 38,
+                        "line": 39
+                      }
+                    },
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 10103,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:39:38",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                          "column": 38,
+                          "line": 39
+                        },
+                        "snippet": "  37 |\n  38 |     const thumbnails = page.locator('img[id^=\"dimg_\"]');\n> 39 |     await expect(thumbnails.first()).toBeVisible();\n     |                                      ^\n  40 |     expect(await thumbnails.count()).toBeGreaterThan(1);\n  41 |   });\n  42 | });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                            "column": 38,
+                            "line": 39
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('img[id^=\"dimg_\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('img[id^=\"dimg_\"]').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('img[id^=\"dimg_\"]').first()\u001b[22m\n\n\n  37 |\n  38 |     const thumbnails = page.locator('img[id^=\"dimg_\"]');\n> 39 |     await expect(thumbnails.first()).toBeVisible();\n     |                                      ^\n  40 |     expect(await thumbnails.count()).toBeGreaterThan(1);\n  41 |   });\n  42 | });\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts:39:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-09-17T06:01:41.967Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/results-filters-Search-res-b68f1--a-grid-of-image-thumbnails-chromium-retry1/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/results-filters.spec.ts",
+                        "column": 38,
+                        "line": 39
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d2206b644b8753637a4d-aad45bd4d73f087f9513",
+              "file": "results-filters.spec.ts",
+              "line": 34,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "search.spec.ts",
+      "file": "search.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Google search",
+          "file": "search.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "User can search and see results",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 9296,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:15:53",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                          "column": 53,
+                          "line": 15
+                        },
+                        "snippet": "  13 |\n  14 |     await expect(page).toHaveURL(/search\\?/);\n> 15 |     await expect(page.locator('#search a').first()).toBeVisible();\n     |                                                     ^\n  16 |     await expect(page.getByRole('combobox', { name: /Search/i })).toHaveValue('playwright testing');\n  17 |   });\n  18 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                            "column": 53,
+                            "line": 15
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n\n\n  13 |\n  14 |     await expect(page).toHaveURL(/search\\?/);\n> 15 |     await expect(page.locator('#search a').first()).toBeVisible();\n     |                                                     ^\n  16 |     await expect(page.getByRole('combobox', { name: /Search/i })).toHaveValue('playwright testing');\n  17 |   });\n  18 |\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:15:53"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:31.322Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/search-Google-search-User-can-search-and-see-results-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                        "column": 53,
+                        "line": 15
+                      }
+                    },
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 9615,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n\u001b[2m    - waiting for \"https://www.google.com/search?q=playwright+testing&sca_esv=79b20cfd986fd0c5&sxsrf=APpeQnudYFeaomRlmflFUnW_0LldKnbcHA%3A1789624901223&source=hp&ei=RYKravmRDPSOseMPgabqsQc&iflsig=ABILxe8AAAAAaquQVb67aj…\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dplaywright%2Btesting%26sca_esv%3D79b20cfd986fd0c5%26sxsrf%3DAPpeQnudYFeaomRlmflFUnW_0LldKnbcHA%253A1789624901223%26sour…\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n\u001b[2m    - waiting for \"https://www.google.com/search?q=playwright+testing&sca_esv=79b20cfd986fd0c5&sxsrf=APpeQnudYFeaomRlmflFUnW_0LldKnbcHA%3A1789624901223&source=hp&ei=RYKravmRDPSOseMPgabqsQc&iflsig=ABILxe8AAAAAaquQVb67aj…\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dplaywright%2Btesting%26sca_esv%3D79b20cfd986fd0c5%26sxsrf%3DAPpeQnudYFeaomRlmflFUnW_0LldKnbcHA%253A1789624901223%26sour…\"\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:15:53",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                          "column": 53,
+                          "line": 15
+                        },
+                        "snippet": "  13 |\n  14 |     await expect(page).toHaveURL(/search\\?/);\n> 15 |     await expect(page.locator('#search a').first()).toBeVisible();\n     |                                                     ^\n  16 |     await expect(page.getByRole('combobox', { name: /Search/i })).toHaveValue('playwright testing');\n  17 |   });\n  18 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                            "column": 53,
+                            "line": 15
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#search a').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#search a').first() with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#search a').first()\u001b[22m\n\u001b[2m    - waiting for \"https://www.google.com/search?q=playwright+testing&sca_esv=79b20cfd986fd0c5&sxsrf=APpeQnudYFeaomRlmflFUnW_0LldKnbcHA%3A1789624901223&source=hp&ei=RYKravmRDPSOseMPgabqsQc&iflsig=ABILxe8AAAAAaquQVb67aj…\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dplaywright%2Btesting%26sca_esv%3D79b20cfd986fd0c5%26sxsrf%3DAPpeQnudYFeaomRlmflFUnW_0LldKnbcHA%253A1789624901223%26sour…\"\u001b[22m\n\n\n  13 |\n  14 |     await expect(page).toHaveURL(/search\\?/);\n> 15 |     await expect(page.locator('#search a').first()).toBeVisible();\n     |                                                     ^\n  16 |     await expect(page.getByRole('combobox', { name: /Search/i })).toHaveValue('playwright testing');\n  17 |   });\n  18 |\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:15:53"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-09-17T06:01:40.920Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/search-Google-search-User-can-search-and-see-results-chromium-retry1/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                        "column": 53,
+                        "line": 15
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a088064de9fe351eef5f-f93a3904747bc0ea7988",
+              "file": "search.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "Search box shows autocomplete suggestions while typing",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4279,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:31.370Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a088064de9fe351eef5f-36d8917e3296817eeb50",
+              "file": "search.spec.ts",
+              "line": 20,
+              "column": 7
+            },
+            {
+              "title": "User can clear and re-run a search from the results page",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "failed",
+                      "duration": 10747,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:38:29",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                          "column": 29,
+                          "line": 38
+                        },
+                        "snippet": "  36 |\n  37 |     const searchBox = page.getByRole('combobox', { name: /Search/i });\n> 38 |     await expect(searchBox).toHaveValue('playwright');\n     |                             ^\n  39 |\n  40 |     await searchBox.fill('');\n  41 |     await searchBox.fill('cypress testing');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                            "column": 29,
+                            "line": 38
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n\n\n  36 |\n  37 |     const searchBox = page.getByRole('combobox', { name: /Search/i });\n> 38 |     await expect(searchBox).toHaveValue('playwright');\n     |                             ^\n  39 |\n  40 |     await searchBox.fill('');\n  41 |     await searchBox.fill('cypress testing');\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:38:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-17T06:01:32.699Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/search-Google-search-User--27f80-earch-from-the-results-page-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                        "column": 29,
+                        "line": 38
+                      }
+                    },
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 3,
+                      "status": "failed",
+                      "duration": 10658,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:38:29",
+                        "location": {
+                          "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                          "column": 29,
+                          "line": 38
+                        },
+                        "snippet": "  36 |\n  37 |     const searchBox = page.getByRole('combobox', { name: /Search/i });\n> 38 |     await expect(searchBox).toHaveValue('playwright');\n     |                             ^\n  39 |\n  40 |     await searchBox.fill('');\n  41 |     await searchBox.fill('cypress testing');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                            "column": 29,
+                            "line": 38
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveValue\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('combobox', { name: /Search/i })\nExpected: \u001b[32m\"playwright\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveValue\" getByRole('combobox', { name: /Search/i }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('combobox', { name: /Search/i })\u001b[22m\n\n\n  36 |\n  37 |     const searchBox = page.getByRole('combobox', { name: /Search/i });\n> 38 |     await expect(searchBox).toHaveValue('playwright');\n     |                             ^\n  39 |\n  40 |     await searchBox.fill('');\n  41 |     await searchBox.fill('cypress testing');\n    at /Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts:38:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-09-17T06:01:43.733Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/test-results/search-Google-search-User--27f80-earch-from-the-results-page-chromium-retry1/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jomymooken/Documents/GitHub/playwright-traceability/demo/google-search/tests/search.spec.ts",
+                        "column": 29,
+                        "line": 38
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a088064de9fe351eef5f-d8519986c0f3bdd6b2fa",
+              "file": "search.spec.ts",
+              "line": 33,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-17T06:01:24.895Z",
+    "duration": 29629.02,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 4,
+    "flaky": 0
+  }
+}
