@@ -2,4 +2,14 @@
 # dependencies (stdlib only). feature_parser.py depends on gherkin-official,
 # Cucumber's own Gherkin parser, for robust .feature file parsing.
 gherkin-official>=24.1.0
+
+# backend/ - FastAPI service (Milestone 2+, per CLAUDE.md's tech stack).
+# Defaults to local SQLite via DATABASE_URL; swap in a Postgres URL for
+# anything beyond local dev.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+requests>=2.31
+
 pytest>=8.0
+httpx2>=2.0  # required by FastAPI's TestClient, used in backend tests

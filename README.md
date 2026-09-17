@@ -1,5 +1,8 @@
 # Playwright Test Inventory Parsers (Milestone 1)
 
+> Milestone 2 (Jira Integration) has started — see `backend/README.md` for
+> the FastAPI service and Jira auth flow.
+
 Three complementary parsers, covering the first three issues of Milestone 1:
 
 1. `parser/report_parser.py` — parses Playwright's JSON reporter output into
