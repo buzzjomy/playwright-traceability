@@ -50,7 +50,11 @@ class TestRunRecordIn(BaseModel):
 class SourceTestRecordIn(BaseModel):
     """One record from parser.static_parser or parser.feature_parser's
     output (see StaticTestRecord.to_dict / FeatureTestRecord.to_dict -
-    identical shape, so one schema covers both)."""
+    otherwise identical shape, so one schema covers both). `assertions` is
+    static-only (BDD assertions live in separate step-definition files a
+    .feature file can't statically resolve - see CLAUDE.md's known gap) and
+    stays [] for feature pushes.
+    """
 
     title: str
     full_title: str
@@ -59,6 +63,7 @@ class SourceTestRecordIn(BaseModel):
     column: int
     tags: list[str] = []
     jira_keys: list[str] = []
+    assertions: list[str] = []
 
 
 class IngestRunRequest(BaseModel):
@@ -151,6 +156,7 @@ class InventoryEntryOut(BaseModel):
     status: str | None = None
     tags: list[str] = []
     jira_keys: list[str] = []
+    assertions: list[str] = []
     in_source: bool
     has_run: bool
     history: list[TrendPointOut] = []
@@ -200,3 +206,19 @@ class RequirementLinksResponse(BaseModel):
 
     project_key: str
     links: list[RequirementLinkOut]
+
+
+class CriterionGapResultOut(BaseModel):
+    """Whether one acceptance criterion is covered by the linked tests' evidence (see CriterionGapResult.to_dict)."""
+
+    criterion: str
+    covered: bool
+    reasoning: str
+
+
+class GapAnalysisResponse(BaseModel):
+    """Response body for POST /api/coverage/gap-analysis."""
+
+    jira_key: str
+    criteria: list[CriterionGapResultOut]
+    uncovered_count: int

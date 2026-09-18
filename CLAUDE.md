@@ -115,7 +115,7 @@ This is why the JSON reporter output is the primary parse target, not
 `.spec.ts` source — see `README.md` for the reasoning already written up
 for Milestone 1.
 
-## Current status (last updated 2026-09-18)
+## Current status (last updated 2026-09-18, later same day)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
 (`parser/report_parser.py`, `parser/static_parser.py` + real TypeScript
@@ -169,7 +169,29 @@ end-to-end against the real `demo/google-search` Jira project (KAN-4
 manually flipped to Suspect, then cleared via a real "Mark reviewed" call
 that re-pulled live Jira content).
 
-Next up is Milestone 5 (Semantic Gap Detection - the actual moat).
+**Milestone 5 (Semantic Gap Detection): issues #21/#22 done, #23 deferred
+as v2 (as originally scoped).** The actual moat. The static parser now
+also extracts each test's `expect(...)` assertion source text (issue #21,
+static-only - `.feature` files can't statically resolve assertions, same
+known gap as before), and `backend/semantic_gap.py` sends a requirement's
+acceptance criteria plus its linked tests' titles/assertions to Claude,
+judging each criterion covered/uncovered individually with a reason
+(issue #22) - not just "this ticket has ≥1 test." Runs on-demand per
+requirement (an "Analyze Gaps" button in the dashboard), since each call
+is a real LLM request; there's no non-LLM fallback for this one (unlike
+issue #19's enrichment-only change summary) - a `400`/`502` on
+misconfiguration or a bad LLM response, never a silently-wrong verdict.
+Issue #23 (persisting and suspect-tracking gap results per criterion, the
+way issue #17 does for whole links) stays v2, unbuilt, per CLAUDE.md's
+original scoping. Verified against real data: re-pushed
+`demo/google-search`'s specs for real assertions, then confirmed KAN-4's
+three criteria matched correctly to specific assertions, and a "Dummy"
+criterion manually added to KAN-9 was correctly flagged as an uncovered
+gap. See `backend/README.md`'s "Semantic gap detection" section for the
+full design.
+
+Milestone 6 (Defect Linking, v2) is what's left in the original 6-milestone
+plan.
 
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story

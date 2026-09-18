@@ -81,6 +81,7 @@ def parse_spec_files(files: list[str | Path]) -> list[StaticTestRecord]:
                 column=raw["column"],
                 tags=tag_option,
                 jira_keys=jira_keys,
+                assertions=raw.get("assertions") or [],
             )
         )
     return records

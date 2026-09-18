@@ -67,6 +67,7 @@ class StaticTestRecord:
     column: int
     tags: list[str] = field(default_factory=list)
     jira_keys: list[str] = field(default_factory=list)
+    assertions: list[str] = field(default_factory=list)  # raw `expect(...)` call source text (issue #21)
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable dict representation of this record."""
@@ -78,6 +79,7 @@ class StaticTestRecord:
             "column": self.column,
             "tags": self.tags,
             "jira_keys": self.jira_keys,
+            "assertions": self.assertions,
         }
 
 

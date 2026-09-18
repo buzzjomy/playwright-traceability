@@ -63,6 +63,7 @@ class InventoryEntry:
     status: str | None  # None if this test has never been run
     tags: list[str] = field(default_factory=list)
     jira_keys: list[str] = field(default_factory=list)
+    assertions: list[str] = field(default_factory=list)  # static-source only (issue #21) - see SourceTestRecord
     in_source: bool = False
     has_run: bool = False
     history: list[TrendPoint] = field(default_factory=list)  # oldest first, most recent last
@@ -78,6 +79,7 @@ class InventoryEntry:
             "status": self.status,
             "tags": self.tags,
             "jira_keys": self.jira_keys,
+            "assertions": self.assertions,
             "in_source": self.in_source,
             "has_run": self.has_run,
             "history": [point.to_dict() for point in self.history],
@@ -112,6 +114,9 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
 
         tags = set(source.tags if source else [])
         jira_keys = set(source.jira_keys if source else [])
+        # Run report data never carries assertions (Playwright's JSON
+        # reporter doesn't emit them) - source is the only possible origin.
+        assertions = source.assertions if source else []
         for run in latest_runs:
             tags |= set(run.tags)
             jira_keys |= set(run.jira_keys)
@@ -130,6 +135,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
                     status=None,
                     tags=sorted(tags),
                     jira_keys=sorted(jira_keys),
+                    assertions=assertions,
                     in_source=True,
                     has_run=False,
                 )
@@ -149,6 +155,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
                         status=run.status,
                         tags=sorted(tags),
                         jira_keys=sorted(jira_keys),
+                        assertions=assertions,
                         in_source=source is not None,
                         has_run=True,
                         history=history,
@@ -158,3 +165,23 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
 
     entries.sort(key=lambda e: (e.file, e.title, e.project or ""))
     return entries
+
+
+def entries_for_jira_key(entries: list[InventoryEntry], jira_key: str) -> list[InventoryEntry]:
+    """Return the distinct (file, title) tests linked to one Jira key.
+
+    Deduped across projects the same way requirement_coverage's counting
+    does - a test that ran under both chromium and firefox is one piece of
+    evidence, not two.
+    """
+    seen: set[tuple[str, str]] = set()
+    result: list[InventoryEntry] = []
+    for entry in entries:
+        if jira_key not in entry.jira_keys:
+            continue
+        dedup_key = (entry.file, entry.title)
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        result.append(entry)
+    return result

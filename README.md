@@ -94,6 +94,7 @@ see "Why parse the JSON reporter..." above.
 | `file`, `line`, `column` | Location of the `test(...)` call in source |
 | `tags` | The `{ tag: ... }` option passed to `test(...)`, if any (string or array) |
 | `jira_keys` | Extracted from the tag option, the test's leading comment text, and the title — same regex as `report_parser.py`, so it also catches `Trace(Jira:PROJ-13)`-style comments that never register as a real Playwright annotation |
+| `assertions` | Raw source text of every `expect(...)`-rooted call chain in the test body (e.g. `expect(page.getByRole('img')).toBeVisible()`), one entry per assertion, in source order — the evidence Milestone 5's semantic gap detection (issue #21) judges against a requirement's acceptance criteria. Static-only: `.feature` files have no test body to extract from (see the known-gap section above), so `FeatureTestRecord` has no `assertions` field at all. |
 
 ## Feature parser usage
 

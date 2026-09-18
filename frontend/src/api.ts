@@ -60,6 +60,18 @@ export interface RequirementLinksResponse {
   links: RequirementLink[];
 }
 
+export interface CriterionGapResult {
+  criterion: string;
+  covered: boolean;
+  reasoning: string;
+}
+
+export interface GapAnalysisResponse {
+  jira_key: string;
+  criteria: CriterionGapResult[];
+  uncovered_count: number;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) {
@@ -99,4 +111,9 @@ export function fetchRequirementLinks(projectKey: string): Promise<RequirementLi
 
 export function markLinkReviewed(linkId: number): Promise<RequirementLink> {
   return postJson(`/api/requirement-links/${linkId}/reviewed`);
+}
+
+export function fetchGapAnalysis(projectKey: string, jiraKey: string): Promise<GapAnalysisResponse> {
+  const params = new URLSearchParams({ project_key: projectKey, jira_key: jiraKey });
+  return postJson(`/api/coverage/gap-analysis?${params.toString()}`);
 }

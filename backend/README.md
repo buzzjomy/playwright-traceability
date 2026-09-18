@@ -54,6 +54,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `GET` | `/api/coverage?project_key=KAN` | Per-requirement test coverage for a Jira project (see below). Not authenticated (read-only, local-only use). |
 | `GET` | `/api/requirement-links?project_key=KAN` | Every requirement↔test link for a project, with its suspect-link state (see below). Also syncs newly-observed links into existence. Not authenticated (read-only, local-only use). |
 | `POST` | `/api/requirement-links/{id}/reviewed` | Clear a link's Suspect state by re-snapshotting it against Jira's current content (see below). |
+| `POST` | `/api/coverage/gap-analysis?project_key=KAN&jira_key=KAN-4` | Judge, per acceptance criterion, whether `jira_key`'s linked tests actually cover it (see below). One real LLM call per request. |
 
 ## Pushing test inventory data
 
@@ -461,6 +462,57 @@ differentiator over tools like SAP's Continuous Traceability Monitor.
 The frontend surfaces this as a "Link Health" table below the existing
 coverage table in `CoverageView.tsx`, with a "Mark reviewed" button on
 Suspect rows.
+
+## Semantic gap detection (Milestone 5, issues #21/#22)
+
+Every earlier milestone answers "does at least one test exist for this
+requirement" (coverage, issue #13) or "has the requirement changed since
+linking" (suspect links, issue #17). Neither checks whether a linked
+test's actual content still substantively matches what the requirement
+asks for - this is the piece that does, and per CLAUDE.md is the actual
+moat, not an incremental feature.
+
+- **Test signal (issue #21):** `static_parser/parse_specs.js` was extended
+  to also extract the raw source text of every `expect(...)`-rooted call
+  chain in a test body (e.g. `expect(page.getByRole('img')).toBeVisible()`),
+  stored as `StaticTestRecord.assertions` / `SourceTestRecord.assertions`
+  and surfaced on `InventoryEntry`. This is static-only - `.feature` files
+  can't statically resolve assertions, since the real Playwright code
+  lives in separate step-definition files (the same known gap CLAUDE.md
+  already documents for BDD teams) - `FeatureTestRecord` has no
+  `assertions` field at all, and run-report data never carries them either
+  (Playwright's JSON reporter doesn't emit assertion source).
+- **Per-criterion judgment (issue #22):** `backend/semantic_gap.py`'s
+  `analyze_gap` sends one Jira requirement's acceptance criteria plus its
+  linked tests' titles/assertions to Claude (`claude-opus-5`) and asks for
+  a covered/uncovered verdict *per criterion*, with a one-sentence reason -
+  flagging the specific gap, not just "this ticket has ≥1 test." A
+  requirement with acceptance criteria but zero linked tests is trivially
+  uncovered without an LLM call at all (there's no evidence to judge).
+- **On-demand, not automatic:** `POST /api/coverage/gap-analysis` runs for
+  one requirement at a time, triggered by an "Analyze Gaps" button per row
+  in the dashboard's coverage table - not eagerly for every requirement on
+  page load, since each call is a real LLM request with real latency and
+  cost.
+- **No non-LLM fallback, unlike issue #19's change summary:** if
+  `ANTHROPIC_API_KEY` isn't configured, the endpoint returns `400` rather
+  than silently guessing; if Claude's response fails to parse as the
+  expected JSON shape (wrong item count, missing fields), it returns `502`
+  rather than returning a wrong-but-plausible-looking verdict. This
+  feature's entire value *is* the LLM's judgment - there's no hash
+  comparison or other mechanism to fall back to the way #17's drift
+  detection has.
+- **Verified against real data:** re-pushed `demo/google-search`'s specs to
+  pick up real assertions, then ran gap analysis against real Jira
+  requirements. KAN-4's three real acceptance criteria were each correctly
+  matched to specific assertions with accurate reasoning; a "Dummy"
+  criterion manually appended to KAN-9 (with no corresponding test
+  evidence) was correctly flagged as an uncovered gap.
+- Issue #23 (per-criterion *suspect* tracking - i.e., persisting a gap
+  result and flipping it when the requirement or test changes, the same
+  way issue #17 does for whole-link state) is explicitly v2 per CLAUDE.md
+  and not built here. Gap analysis today is stateless - every call re-runs
+  the judgment fresh, nothing is persisted.
 
 ## Design notes for whoever picks up the next issue
 

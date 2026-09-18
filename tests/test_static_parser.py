@@ -58,3 +58,16 @@ def test_test_without_tag_or_comment_has_no_tags_or_jira_keys(records):
 def test_top_level_test_outside_any_describe_has_empty_full_title_prefix(records):
     rec = next(r for r in records if r.title == "should apply discount code at checkout")
     assert rec.full_title == "should apply discount code at checkout"
+
+
+def test_assertions_are_captured_as_raw_source_text(records):
+    rec = next(r for r in records if r.title == "should login with valid credentials")
+    assert rec.assertions == [
+        "expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()",
+        "expect(page.url()).not.toBe('/login')",
+    ]
+
+
+def test_single_assertion_test_captures_one_entry(records):
+    rec = next(r for r in records if r.title == "should reject invalid password")
+    assert rec.assertions == ["expect(true).toBe(true)"]

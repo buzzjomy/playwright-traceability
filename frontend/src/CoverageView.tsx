@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react';
-import { fetchCoverage, fetchRequirementLinks, markLinkReviewed, type CoverageResponse, type RequirementLink } from './api';
+import { Fragment, useEffect, useState } from 'react';
+import {
+  fetchCoverage,
+  fetchGapAnalysis,
+  fetchRequirementLinks,
+  markLinkReviewed,
+  type CoverageResponse,
+  type GapAnalysisResponse,
+  type RequirementLink,
+} from './api';
 import { JiraKeyLink } from './JiraKeyLink';
 
 // Reuses the pass/fail/flaky badge styling from the inventory table -
@@ -42,9 +50,15 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
   const [linksError, setLinksError] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
 
+  const [gapResults, setGapResults] = useState<Record<string, GapAnalysisResponse>>({});
+  const [gapErrors, setGapErrors] = useState<Record<string, string>>({});
+  const [analyzingKey, setAnalyzingKey] = useState<string | null>(null);
+
   function load(key: string) {
     setLoading(true);
     setError(null);
+    setGapResults({});
+    setGapErrors({});
     fetchCoverage(key)
       .then((result) => {
         setData(result);
@@ -67,6 +81,15 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
       })
       .catch((err: Error) => setLinksError(err.message))
       .finally(() => setReviewingId(null));
+  }
+
+  function analyzeGaps(jiraKey: string) {
+    setAnalyzingKey(jiraKey);
+    setGapErrors((current) => ({ ...current, [jiraKey]: '' }));
+    fetchGapAnalysis(projectKey, jiraKey)
+      .then((result) => setGapResults((current) => ({ ...current, [jiraKey]: result })))
+      .catch((err: Error) => setGapErrors((current) => ({ ...current, [jiraKey]: err.message })))
+      .finally(() => setAnalyzingKey(null));
   }
 
   useEffect(() => {
@@ -110,23 +133,62 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
                   <th>Summary</th>
                   <th>Linked Tests</th>
                   <th>Coverage</th>
+                  <th>Gap Analysis</th>
                 </tr>
               </thead>
               <tbody>
-                {data.requirements.map((req) => (
-                  <tr key={req.key}>
-                    <td>
-                      <JiraKeyLink jiraKey={req.key} siteUrl={siteUrl} />
-                    </td>
-                    <td>{req.summary}</td>
-                    <td>{req.linked_test_count}</td>
-                    <td>
-                      <span className={`status ${req.covered ? 'status-passed' : 'status-failed'}`}>
-                        {req.covered ? 'covered' : 'uncovered'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {data.requirements.map((req) => {
+                  const gapResult = gapResults[req.key];
+                  const gapError = gapErrors[req.key];
+                  return (
+                    <Fragment key={req.key}>
+                      <tr>
+                        <td>
+                          <JiraKeyLink jiraKey={req.key} siteUrl={siteUrl} />
+                        </td>
+                        <td>{req.summary}</td>
+                        <td>{req.linked_test_count}</td>
+                        <td>
+                          <span className={`status ${req.covered ? 'status-passed' : 'status-failed'}`}>
+                            {req.covered ? 'covered' : 'uncovered'}
+                          </span>
+                        </td>
+                        <td>
+                          <button onClick={() => analyzeGaps(req.key)} disabled={analyzingKey === req.key}>
+                            {analyzingKey === req.key
+                              ? 'Analyzing…'
+                              : gapResult
+                                ? 'Re-analyze'
+                                : 'Analyze Gaps'}
+                          </button>
+                        </td>
+                      </tr>
+                      {gapError && (
+                        <tr>
+                          <td colSpan={5} className="error">
+                            Gap analysis failed: {gapError}
+                          </td>
+                        </tr>
+                      )}
+                      {gapResult && (
+                        <tr>
+                          <td colSpan={5}>
+                            <ul className="gap-analysis-list">
+                              {gapResult.criteria.map((c, i) => (
+                                <li key={i}>
+                                  <span className={`status ${c.covered ? 'status-passed' : 'status-failed'}`}>
+                                    {c.covered ? 'covered' : 'gap'}
+                                  </span>{' '}
+                                  <strong>{c.criterion}</strong> — {c.reasoning}
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}

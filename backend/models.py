@@ -97,6 +97,7 @@ class SourceTestRecord(Base):
     column: Mapped[int] = mapped_column()
     tags: Mapped[list] = mapped_column(JSON, default=list)
     jira_keys: Mapped[list] = mapped_column(JSON, default=list)
+    assertions: Mapped[list] = mapped_column(JSON, default=list)  # static-only; always [] for feature rows
 
 
 class JiraWebhookEvent(Base):

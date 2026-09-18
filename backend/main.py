@@ -41,6 +41,7 @@ from backend.requirement_coverage import build_coverage
 from backend.requirement_links import list_requirement_links, mark_reviewed, sync_requirement_links
 from backend.schemas import (
     CoverageResponse,
+    GapAnalysisResponse,
     IngestRunRequest,
     IngestRunResponse,
     InventoryResponse,
@@ -53,7 +54,8 @@ from backend.schemas import (
     RequirementLinkOut,
     RequirementLinksResponse,
 )
-from backend.test_inventory import build_inventory
+from backend.semantic_gap import GapAnalysisError, LLMNotConfiguredError, analyze_gap
+from backend.test_inventory import build_inventory, entries_for_jira_key
 
 
 @asynccontextmanager
@@ -447,3 +449,48 @@ def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict
         "linked_at": link.linked_at.isoformat(),
         "last_reviewed_at": link.last_reviewed_at.isoformat() if link.last_reviewed_at else None,
     }
+
+
+@app.post("/api/coverage/gap-analysis", response_model=GapAnalysisResponse)
+def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_db)) -> GapAnalysisResponse:
+    """Judge, per acceptance criterion, whether jira_key's linked tests
+    actually cover it (Milestone 5, issues #21/#22) - the differentiator
+    over coverage's "does at least one test exist" (issue #13).
+
+    On-demand per requirement (not run automatically for a whole project)
+    since each call is a real LLM request. Requires a Jira connection (to
+    re-pull the requirement's current acceptance criteria) and
+    `ANTHROPIC_API_KEY` - there's no non-LLM fallback for this endpoint,
+    unlike issue #19's enrichment-only change summary.
+    """
+    if not jira_key.startswith(f"{project_key}-"):
+        raise HTTPException(status_code=400, detail=f"{jira_key} does not belong to project {project_key}")
+
+    connection = db.query(JiraConnection).first()
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+
+    client = JiraClient(connection.site_url, connection.email, connection.api_token)
+    try:
+        requirement = pull_requirement(client, jira_key)
+    except JiraAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    if requirement is None:
+        raise HTTPException(status_code=404, detail=f"{jira_key} does not resolve in Jira")
+
+    linked_tests = entries_for_jira_key(build_inventory(db), jira_key)
+
+    try:
+        results = analyze_gap(requirement.acceptance_criteria, linked_tests)
+    except LLMNotConfiguredError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GapAnalysisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    uncovered_count = sum(1 for r in results if not r.covered)
+    return GapAnalysisResponse(
+        jira_key=jira_key,
+        criteria=[r.to_dict() for r in results],
+        uncovered_count=uncovered_count,
+    )

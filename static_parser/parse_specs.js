@@ -7,8 +7,9 @@
 // never show (skipped, grep-filtered out, or just never executed).
 //
 // Emits raw facts as JSON (title, location, tag option, leading comment
-// text) for parser/static_parser.py to interpret. Jira-key extraction and
-// other business logic intentionally stay in Python, not duplicated here.
+// text, assertion call source text) for parser/static_parser.py to
+// interpret. Jira-key extraction and other business logic intentionally
+// stay in Python, not duplicated here.
 //
 // Usage: node parse_specs.js <actualPath1> <displayPath1> [<actualPath2> <displayPath2> ...]
 // actualPath is read from disk; displayPath is what's emitted as "file" (so
@@ -55,6 +56,39 @@ function resolveStaticString(node) {
 /** Find the callback (arrow function or function expression) among a call's arguments. */
 function findFunctionArgument(args) {
   return args.find((a) => ts.isArrowFunction(a) || ts.isFunctionExpression(a));
+}
+
+/**
+ * Return the leftmost identifier of a fluent call/property-access chain,
+ * e.g. `expect(x).not.toBe(y)` -> "expect", `page.locator(x).click()` -> "page".
+ * Returns null for anything else (a computed member access, etc).
+ */
+function getChainRootIdentifier(node) {
+  while (node) {
+    if (ts.isIdentifier(node)) return node.text;
+    if (ts.isCallExpression(node) || ts.isPropertyAccessExpression(node)) {
+      node = node.expression;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Recursively collect the source text of every `expect(...)`-rooted call in
+ * a test body, e.g. `expect(page.getByRole('button')).toBeVisible()` - this
+ * is the raw signal semantic gap detection (issue #21) compares against a
+ * requirement's acceptance criteria. Stops descending once a chain matches,
+ * so an assertion's own arguments (a locator, an expected value) aren't
+ * misread as further assertions.
+ */
+function collectAssertions(node, sourceFile, out) {
+  if (ts.isCallExpression(node) && getChainRootIdentifier(node.expression) === 'expect') {
+    out.push(node.getText(sourceFile));
+    return;
+  }
+  ts.forEachChild(node, (child) => collectAssertions(child, sourceFile, out));
 }
 
 /** Find the `{ tag: ..., annotation: ... }` details object among a call's arguments, if any. */
@@ -111,7 +145,13 @@ function parseFile(filePath, displayPath) {
     if (title === null) return;
 
     const optionsArg = findOptionsObjectArgument(node.arguments);
+    const fnArg = findFunctionArgument(node.arguments);
     const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+
+    const assertions = [];
+    if (fnArg && fnArg.body) {
+      collectAssertions(fnArg.body, sourceFile, assertions);
+    }
 
     records.push({
       title,
@@ -121,6 +161,7 @@ function parseFile(filePath, displayPath) {
       column: pos.character + 1,
       tag_option: extractTagOption(optionsArg),
       leading_comment_text: getLeadingCommentsText(node, sourceFile),
+      assertions,
     });
   }
 

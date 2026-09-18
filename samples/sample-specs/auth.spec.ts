@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Login flow', () => {
   // Trace(Jira:PROJ-101)
-  test('should login with valid credentials', { tag: '@smoke' }, async () => {
-    expect(true).toBe(true);
+  test('should login with valid credentials', { tag: '@smoke' }, async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    expect(page.url()).not.toBe('/login');
   });
 
   test('should reject invalid password', async () => {
