@@ -1,5 +1,7 @@
 # Playwright Test Inventory Parsers (Milestone 1)
 
+![Requirement Coverage dashboard, showing per-requirement test coverage, health state, and a selected requirement's detail panel](docs/screenshots/requirement-coverage.png)
+
 > New to the dashboard? See [`USER_GUIDE.md`](USER_GUIDE.md) for how to
 > connect Jira, push test data, and use the Test Inventory / Requirement
 > Coverage / Gap Analysis views. This README (and the other `README.md`
