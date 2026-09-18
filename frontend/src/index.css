@@ -1,10 +1,18 @@
 :root {
-  color-scheme: light dark;
+  /* This app's whole palette (App.css's dark button/badge/status colors
+     with light text) was built for one dark surface, not a page that
+     switches with the OS - "light dark" let a light-mode browser render a
+     white page with black default text under those dark-assuming colors,
+     which is what made several elements unreadable. Force dark instead of
+     patching every element that assumes it. */
+  color-scheme: dark;
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
 body {
   margin: 0;
+  background: #111827;
+  color: #e5e7eb;
 }
 
 h1 {
