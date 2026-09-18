@@ -21,6 +21,20 @@ with a token a user generates themselves at id.atlassian.com — the
 pragmatic MVP choice for a solo builder. See `CLAUDE.md` for the broader
 "ship MVP fast" reasoning.
 
+### Configuring the connection via environment variables
+
+The normal path is the one-time `POST /api/jira/connection` call described
+above, but for a self-hosted deployment (Docker, a scheduled task runner,
+etc.) it's often more convenient to configure Jira the same way as
+`DATABASE_URL`/`INGEST_API_KEY`/`ANTHROPIC_API_KEY` — via the environment,
+with no manual API call needed. If `JIRA_SITE_URL`, `JIRA_EMAIL`, and
+`JIRA_API_TOKEN` are all set when the backend starts **and no connection
+is already stored**, it validates them against the live Jira API the same
+way the manual endpoint does, and stores them automatically. Missing any
+one of the three, or a connection already existing, is a silent no-op —
+this never overwrites an existing connection, and a rejected or malformed
+env-var credential is logged to stderr rather than crashing startup.
+
 ## Why SQLite by default, not Postgres
 
 `backend/db.py` defaults `DATABASE_URL` to a local SQLite file so there's

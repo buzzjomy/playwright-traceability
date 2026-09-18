@@ -15,14 +15,17 @@ Run locally with:
 
 from __future__ import annotations
 
+import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.auth import require_ingest_api_key, require_webhook_token
-from backend.db import get_db, init_db
+from backend.db import SessionLocal, get_db, init_db
 from backend.drift_detection import detect_drift_for_issue
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_polling import poll_for_changes
@@ -58,10 +61,68 @@ from backend.semantic_gap import GapAnalysisError, LLMNotConfiguredError, analyz
 from backend.test_inventory import build_inventory, entries_for_jira_key
 
 
+def _connect_jira(db: Session, site_url: str, email: str, api_token: str) -> tuple[JiraConnection, dict]:
+    """Validate Jira credentials against the live API, replace any existing
+    connection with them, and return the new connection row plus the
+    validated `/myself` response. Raises JiraAuthError if Jira rejects them.
+    Shared by the manual POST /api/jira/connection endpoint and the
+    env-var bootstrap below, so both go through the same validate-then-
+    persist path.
+    """
+    client = JiraClient(site_url, email, api_token)
+    me = client.get_current_user()
+    db.query(JiraConnection).delete()
+    connection = JiraConnection(site_url=site_url, email=email, api_token=api_token)
+    db.add(connection)
+    db.commit()
+    return connection, me
+
+
+def _bootstrap_jira_connection_from_env() -> None:
+    """Auto-create a Jira connection from JIRA_SITE_URL/JIRA_EMAIL/
+    JIRA_API_TOKEN env vars on startup, if all three are set and no
+    connection exists yet.
+
+    Lets a self-hosted deployment configure Jira once via its environment
+    (matching DATABASE_URL/INGEST_API_KEY/etc.) instead of always needing
+    a manual POST /api/jira/connection call. Does nothing if any of the
+    three env vars are missing or a connection already exists; logs a
+    warning rather than raising if the env credentials are malformed or
+    rejected by Jira, so a bad env var can't crash startup.
+    """
+    site_url = os.environ.get("JIRA_SITE_URL")
+    email = os.environ.get("JIRA_EMAIL")
+    api_token = os.environ.get("JIRA_API_TOKEN")
+    if not (site_url and email and api_token):
+        return
+
+    db = SessionLocal()
+    try:
+        if db.query(JiraConnection).first() is not None:
+            return
+        try:
+            normalized = JiraConnectionCreate(site_url=site_url, email=email, api_token=api_token)
+        except ValidationError:
+            print("JIRA_SITE_URL is not a valid URL - skipping auto-connect from environment", file=sys.stderr)
+            return
+        try:
+            _connect_jira(db, str(normalized.site_url), normalized.email, normalized.api_token)
+        except JiraAuthError:
+            print(
+                "JIRA_SITE_URL/JIRA_EMAIL/JIRA_API_TOKEN were rejected by Jira - skipping auto-connect",
+                file=sys.stderr,
+            )
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Create DB tables on startup if they don't exist yet."""
+    """Create DB tables on startup if they don't exist yet, then try to
+    auto-connect Jira from the environment (see
+    _bootstrap_jira_connection_from_env)."""
     init_db()
+    _bootstrap_jira_connection_from_env()
     yield
 
 
@@ -91,16 +152,10 @@ def create_jira_connection(payload: JiraConnectionCreate, db: Session = Depends(
 
     Replaces any existing connection - this is single-tenant for now.
     """
-    client = JiraClient(str(payload.site_url), payload.email, payload.api_token)
     try:
-        me = client.get_current_user()
+        connection, me = _connect_jira(db, str(payload.site_url), payload.email, payload.api_token)
     except JiraAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    db.query(JiraConnection).delete()
-    connection = JiraConnection(site_url=str(payload.site_url), email=payload.email, api_token=payload.api_token)
-    db.add(connection)
-    db.commit()
 
     return JiraConnectionStatus(
         connected=True,

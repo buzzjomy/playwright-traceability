@@ -28,6 +28,8 @@ This guide is for QA engineers and team leads who write Playwright tests and tra
 
 The backend validates the credentials against the real Jira API before storing them, and returns `401` if they're rejected. There's no connection form in the dashboard yet — this one-time setup call is the only step done outside the UI. Once connected, every dashboard tab works without reconnecting.
 
+**Self-hosting instead?** You can skip the manual call above by setting `JIRA_SITE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` as environment variables before starting the backend — if all three are set and no connection exists yet, it validates and stores them automatically on startup, the same way `DATABASE_URL`/`INGEST_API_KEY` are configured. It never overwrites an existing connection, and a rejected/malformed value just skips silently (logged to stderr) rather than crashing.
+
 ## Getting your tests in
 
 Run this right after your Playwright suite, typically as a CI step:
