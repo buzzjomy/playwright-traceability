@@ -4,6 +4,7 @@ import {
   fetchGapAnalysis,
   fetchRequirementLinks,
   markLinkReviewed,
+  type CoverageEntry,
   type CoverageResponse,
   type GapAnalysisResponse,
   type RequirementLink,
@@ -19,6 +20,28 @@ const LINK_STATE_CLASS: Record<RequirementLink['state'], string> = {
   stale: 'status-never-run',
   orphaned: 'status-failed',
 };
+
+// Worst-first, for rolling up one requirement's many links into a single
+// health badge - a requirement is only as healthy as its worst link.
+const STATE_SEVERITY: Record<RequirementLink['state'], number> = {
+  suspect: 0,
+  stale: 1,
+  orphaned: 2,
+  covered: 3,
+};
+
+type Health = { label: RequirementLink['state'] | 'uncovered'; className: string };
+
+function rollUpHealth(req: CoverageEntry, reqLinks: RequirementLink[]): Health {
+  if (reqLinks.length > 0) {
+    const worst = reqLinks.reduce((a, b) => (STATE_SEVERITY[a.state] <= STATE_SEVERITY[b.state] ? a : b));
+    return { label: worst.state, className: LINK_STATE_CLASS[worst.state] };
+  }
+  // No synced link yet even though linked_test_count may be >0 (sync runs
+  // lazily on the Link Health fetch) - fall back to coverage's own signal
+  // rather than showing nothing.
+  return req.covered ? { label: 'covered', className: 'status-passed' } : { label: 'uncovered', className: 'status-failed' };
+}
 
 // Per-viewer convenience only (which project key you last looked at) -
 // never shared, never read by the backend. Wrapped in try/catch since
@@ -39,6 +62,55 @@ function rememberProjectKey(key: string): void {
   }
 }
 
+function LinkDetailRows({
+  reqLinks,
+  reviewingId,
+  onReview,
+}: {
+  reqLinks: RequirementLink[];
+  reviewingId: number | null;
+  onReview: (linkId: number) => void;
+}) {
+  return (
+    <tr>
+      <td colSpan={6}>
+        <table className="inventory-table">
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>State</th>
+              <th>Last Reviewed</th>
+              <th>What Changed</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {reqLinks.map((link) => (
+              <tr key={link.id}>
+                <td className="file-cell">
+                  {link.test_file} — {link.test_title}
+                </td>
+                <td>
+                  <span className={`status ${LINK_STATE_CLASS[link.state]}`}>{link.state}</span>
+                </td>
+                <td>{link.last_reviewed_at ? new Date(link.last_reviewed_at).toLocaleString() : '—'}</td>
+                <td>{link.change_summary ?? '—'}</td>
+                <td>
+                  {link.state === 'suspect' && (
+                    <button onClick={() => onReview(link.id)} disabled={reviewingId === link.id}>
+                      {reviewingId === link.id ? 'Reviewing…' : 'Mark reviewed'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  );
+}
+
 export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
   const [projectKey] = useState(loadRememberedProjectKey);
   const [inputValue, setInputValue] = useState(projectKey);
@@ -49,6 +121,7 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
   const [links, setLinks] = useState<RequirementLink[] | null>(null);
   const [linksError, setLinksError] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   const [gapResults, setGapResults] = useState<Record<string, GapAnalysisResponse>>({});
   const [gapErrors, setGapErrors] = useState<Record<string, string>>({});
@@ -59,6 +132,7 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
     setError(null);
     setGapResults({});
     setGapErrors({});
+    setExpandedKeys(new Set());
     fetchCoverage(key)
       .then((result) => {
         setData(result);
@@ -92,11 +166,39 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
       .finally(() => setAnalyzingKey(null));
   }
 
+  function toggleExpanded(key: string) {
+    setExpandedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
     load(projectKey);
     // Only on mount - subsequent loads are triggered by the form submit below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const linksByKey = new Map<string, RequirementLink[]>();
+  for (const link of links ?? []) {
+    const existing = linksByKey.get(link.jira_key);
+    if (existing) {
+      existing.push(link);
+    } else {
+      linksByKey.set(link.jira_key, [link]);
+    }
+  }
+
+  // Links whose Jira key isn't among the pulled requirements at all - an
+  // orphaned link with nothing to look up a summary for - would otherwise
+  // vanish entirely when the table is keyed off `data.requirements`.
+  const requirementKeys = new Set((data?.requirements ?? []).map((r) => r.key));
+  const unmatchedKeys = [...linksByKey.keys()].filter((k) => !requirementKeys.has(k)).sort();
 
   return (
     <>
@@ -115,15 +217,16 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
       </form>
 
       {error && <p className="error">Couldn't load coverage: {error}</p>}
+      {linksError && <p className="error">Couldn't load link health: {linksError}</p>}
 
       {data && (
         <>
           <p className="subtitle">
             {data.total} requirement{data.total === 1 ? '' : 's'} in {data.project_key} — {data.covered} covered,{' '}
-            {data.uncovered} uncovered.
+            {data.uncovered} uncovered. Expand a row to see its individual test links.
           </p>
 
-          {data.requirements.length === 0 ? (
+          {data.requirements.length === 0 && unmatchedKeys.length === 0 ? (
             <p>No requirements found for this project.</p>
           ) : (
             <table className="inventory-table">
@@ -132,14 +235,18 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
                   <th>Key</th>
                   <th>Summary</th>
                   <th>Linked Tests</th>
-                  <th>Coverage</th>
+                  <th>Health</th>
                   <th>Gap Analysis</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {data.requirements.map((req) => {
+                  const reqLinks = linksByKey.get(req.key) ?? [];
+                  const health = rollUpHealth(req, reqLinks);
                   const gapResult = gapResults[req.key];
                   const gapError = gapErrors[req.key];
+                  const expanded = expandedKeys.has(req.key);
                   return (
                     <Fragment key={req.key}>
                       <tr>
@@ -149,30 +256,34 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
                         <td>{req.summary}</td>
                         <td>{req.linked_test_count}</td>
                         <td>
-                          <span className={`status ${req.covered ? 'status-passed' : 'status-failed'}`}>
-                            {req.covered ? 'covered' : 'uncovered'}
-                          </span>
+                          <span className={`status ${health.className}`}>{health.label}</span>
                         </td>
                         <td>
                           <button onClick={() => analyzeGaps(req.key)} disabled={analyzingKey === req.key}>
-                            {analyzingKey === req.key
-                              ? 'Analyzing…'
-                              : gapResult
-                                ? 'Re-analyze'
-                                : 'Analyze Gaps'}
+                            {analyzingKey === req.key ? 'Analyzing…' : gapResult ? 'Re-analyze' : 'Analyze Gaps'}
                           </button>
                         </td>
+                        <td>
+                          {reqLinks.length > 0 && (
+                            <button onClick={() => toggleExpanded(req.key)}>
+                              {expanded ? 'Hide links' : `Show ${reqLinks.length} link${reqLinks.length === 1 ? '' : 's'}`}
+                            </button>
+                          )}
+                        </td>
                       </tr>
+                      {expanded && (
+                        <LinkDetailRows reqLinks={reqLinks} reviewingId={reviewingId} onReview={reviewLink} />
+                      )}
                       {gapError && (
                         <tr>
-                          <td colSpan={5} className="error">
+                          <td colSpan={6} className="error">
                             Gap analysis failed: {gapError}
                           </td>
                         </tr>
                       )}
                       {gapResult && (
                         <tr>
-                          <td colSpan={5}>
+                          <td colSpan={6}>
                             <ul className="gap-analysis-list">
                               {gapResult.criteria.map((c, i) => (
                                 <li key={i}>
@@ -189,61 +300,36 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
                     </Fragment>
                   );
                 })}
-              </tbody>
-            </table>
-          )}
 
-          <h3>Link Health</h3>
-          <p className="subtitle">
-            Whether each linked test's requirement has changed since it was linked - the differentiator over "does a
-            link exist at all" (see the coverage table above).
-          </p>
-
-          {linksError && <p className="error">Couldn't load link health: {linksError}</p>}
-
-          {links && (
-            <>
-              {links.length === 0 ? (
-                <p>No requirement links yet.</p>
-              ) : (
-                <table className="inventory-table">
-                  <thead>
-                    <tr>
-                      <th>Key</th>
-                      <th>Test</th>
-                      <th>State</th>
-                      <th>Last Reviewed</th>
-                      <th>What Changed</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {links.map((link) => (
-                      <tr key={link.id}>
+                {unmatchedKeys.map((key) => {
+                  const reqLinks = linksByKey.get(key) ?? [];
+                  const expanded = expandedKeys.has(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr>
                         <td>
-                          <JiraKeyLink jiraKey={link.jira_key} siteUrl={siteUrl} />
+                          <JiraKeyLink jiraKey={key} siteUrl={siteUrl} />
                         </td>
-                        <td className="file-cell">
-                          {link.test_file} — {link.test_title}
-                        </td>
+                        <td className="subtitle">(no longer resolves in Jira)</td>
+                        <td>{reqLinks.length}</td>
                         <td>
-                          <span className={`status ${LINK_STATE_CLASS[link.state]}`}>{link.state}</span>
+                          <span className={`status ${LINK_STATE_CLASS.orphaned}`}>orphaned</span>
                         </td>
-                        <td>{link.last_reviewed_at ? new Date(link.last_reviewed_at).toLocaleString() : '—'}</td>
-                        <td>{link.change_summary ?? '—'}</td>
+                        <td />
                         <td>
-                          {link.state === 'suspect' && (
-                            <button onClick={() => reviewLink(link.id)} disabled={reviewingId === link.id}>
-                              {reviewingId === link.id ? 'Reviewing…' : 'Mark reviewed'}
-                            </button>
-                          )}
+                          <button onClick={() => toggleExpanded(key)}>
+                            {expanded ? 'Hide links' : `Show ${reqLinks.length} link${reqLinks.length === 1 ? '' : 's'}`}
+                          </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
+                      {expanded && (
+                        <LinkDetailRows reqLinks={reqLinks} reviewingId={reviewingId} onReview={reviewLink} />
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </>
       )}
