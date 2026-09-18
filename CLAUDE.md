@@ -115,6 +115,26 @@ This is why the JSON reporter output is the primary parse target, not
 `.spec.ts` source — see `README.md` for the reasoning already written up
 for Milestone 1.
 
+## A known scaling gap: the coverage/link dashboards assume a small project
+
+`GET /api/coverage` and `GET /api/requirement-links` (Milestones 3 and 4)
+both live-pull *every* requirement in a Jira project and return the whole
+result in one JSON response; `CoverageView.tsx` renders all of it in one
+unpaginated table, with no filtering beyond the project-key input. This is
+fine at demo scale (`demo/google-search`'s 14 requirements) but breaks
+down for a project with hundreds or thousands of requirements: a slow
+full-project Jira pull and a huge payload on every load, and a table the
+user has no way to narrow down beyond scrolling.
+
+If this ever needs to support a real project at that scale, the fix is
+server-side pagination and filtering on both endpoints (`page`/`page_size`
+plus a `state=uncovered|suspect|gap` filter, most likely), with the
+frontend becoming a paginated/filtered table driven by those params — not
+just a client-side search box, which doesn't address the underlying
+full-project fetch. Flagged here rather than built, since it's not needed
+for the current MVP/demo scope — raised during a design discussion on
+2026-09-18, not from an actual customer hitting this limit yet.
+
 ## Current status (last updated 2026-09-18, later same day)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
