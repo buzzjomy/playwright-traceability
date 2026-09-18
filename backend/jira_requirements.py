@@ -105,6 +105,18 @@ def extract_acceptance_criteria(adf: dict | None) -> list[str]:
     return []
 
 
+def _build_requirement(issue: dict) -> JiraRequirement:
+    """Build a JiraRequirement from one raw Jira issue payload (search or single-issue fetch)."""
+    fields = issue["fields"]
+    description = fields.get("description")
+    return JiraRequirement(
+        key=issue["key"],
+        summary=fields.get("summary", ""),
+        description_text=extract_plain_text(description),
+        acceptance_criteria=extract_acceptance_criteria(description),
+    )
+
+
 def pull_requirements(
     client: JiraClient, project_key: str, issue_types: list[str] | None = None
 ) -> list[JiraRequirement]:
@@ -117,17 +129,17 @@ def pull_requirements(
         jql += f" AND issuetype in ({types_clause})"
 
     raw_issues = client.search_issues(jql, fields=["summary", "description"])
+    return [_build_requirement(issue) for issue in raw_issues]
 
-    requirements = []
-    for issue in raw_issues:
-        fields = issue["fields"]
-        description = fields.get("description")
-        requirements.append(
-            JiraRequirement(
-                key=issue["key"],
-                summary=fields.get("summary", ""),
-                description_text=extract_plain_text(description),
-                acceptance_criteria=extract_acceptance_criteria(description),
-            )
-        )
-    return requirements
+
+def pull_requirement(client: JiraClient, key: str) -> JiraRequirement | None:
+    """Pull a single requirement by key, e.g. to re-check content for the
+    suspect-link mechanism (issues #17/#20). Returns None if the key
+    doesn't resolve (deleted issue, wrong key, or an issue this account
+    can no longer see) - callers treat that as the "orphaned" case rather
+    than an error.
+    """
+    issue = client.get_issue(key, fields=["summary", "description"])
+    if issue is None:
+        return None
+    return _build_requirement(issue)

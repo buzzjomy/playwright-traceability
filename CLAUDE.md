@@ -115,7 +115,7 @@ This is why the JSON reporter output is the primary parse target, not
 `.spec.ts` source — see `README.md` for the reasoning already written up
 for Milestone 1.
 
-## Current status (last updated 2026-09-17)
+## Current status (last updated 2026-09-18)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
 (`parser/report_parser.py`, `parser/static_parser.py` + real TypeScript
@@ -147,8 +147,29 @@ coverage view (issue #13), a per-test pass/fail trend (issue #14 —
 colored dots on the inventory table, no new model needed), and flaky-run
 flagging (issue #15 — Playwright's own retry-based `test.status ==
 "flaky"`, parsed since Milestone 1 but not surfaced until now).
-Milestone 3 is complete; next up is Milestone 4 (Requirement-Change
-Detection).
+Milestone 3 is complete.
+
+**Milestone 4 (Requirement-Change Detection): fully done, issues #16-#20.**
+The suspect-link mechanism this product exists to differentiate on. A new
+persisted `RequirementLink` table hashes a requirement's substantive
+fields (summary/description/AC) the first time a test is seen linking to
+it (issue #16); the webhook and polling delivery paths both feed a shared
+`detect_drift_for_issue` (issue #17) that re-pulls live content and flips
+a link to Suspect on a hash mismatch. `stale`/`orphaned` (issue #18) are
+derived at read time from current inventory/Jira data rather than stored,
+since only Suspect needs event-driven detection. Issue #19 (an LLM
+plain-language "what changed" summary, via `claude-opus-5`) is enrichment
+only - it's skipped gracefully without `ANTHROPIC_API_KEY` and never blocks
+the Suspect flag itself. Issue #20's manual "Reviewed" action is the only
+way a Suspect link is ever cleared - no auto-clear path exists anywhere,
+on purpose. Surfaced in the dashboard as a "Link Health" table below the
+existing coverage view. See `backend/README.md`'s "Requirement-change
+detection and suspect links" section for the full design, and verified
+end-to-end against the real `demo/google-search` Jira project (KAN-4
+manually flipped to Suspect, then cleared via a real "Mark reviewed" call
+that re-pulled live Jira content).
+
+Next up is Milestone 5 (Semantic Gap Detection - the actual moat).
 
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story

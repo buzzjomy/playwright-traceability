@@ -13,3 +13,7 @@ requests>=2.31
 
 pytest>=8.0
 httpx2>=2.0  # required by FastAPI's TestClient, used in backend tests
+
+# Milestone 4, issue #19 - plain-language "what changed" summary on a
+# Suspect requirement link.
+anthropic>=0.40

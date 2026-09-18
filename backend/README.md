@@ -52,6 +52,8 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `POST` | `/api/jira/poll?project_key=KAN` | Poll Jira for issues changed since the last poll (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 | `GET` | `/api/inventory` | The reconciled test inventory (see below) — what `frontend/`'s dashboard reads. Not authenticated (read-only, local-only use). |
 | `GET` | `/api/coverage?project_key=KAN` | Per-requirement test coverage for a Jira project (see below). Not authenticated (read-only, local-only use). |
+| `GET` | `/api/requirement-links?project_key=KAN` | Every requirement↔test link for a project, with its suspect-link state (see below). Also syncs newly-observed links into existence. Not authenticated (read-only, local-only use). |
+| `POST` | `/api/requirement-links/{id}/reviewed` | Clear a link's Suspect state by re-snapshotting it against Jira's current content (see below). |
 
 ## Pushing test inventory data
 
@@ -410,6 +412,56 @@ against live Google in one real run — Playwright itself marked it
 `test.status: "flaky"`, and `is_flaky: true` came through correctly via
 `GET /api/inventory` and rendered as a badge in the dashboard.
 
+## Requirement-change detection and suspect links (Milestone 4, issues #16-#20)
+
+Every prior milestone answers "does a linked test exist at all." This is
+the first piece that checks whether a link is still *trustworthy* - CLAUDE.md's
+differentiator over tools like SAP's Continuous Traceability Monitor.
+
+- **Hash at link time (issue #16):** the first time a test's `jira_keys`
+  are seen referencing a given Jira key (via `GET /api/requirement-links`,
+  which syncs on every call), a `RequirementLink` row is created with a
+  hash of that requirement's summary/description/acceptance-criteria
+  (`backend/requirement_hash.py`) and a full snapshot of that content, so
+  a later comparison or "what changed" summary has something concrete to
+  diff against.
+- **Drift detection (issue #17):** both delivery paths that say "this Jira
+  issue changed" - the webhook receiver and the polling fallback - call
+  `backend/drift_detection.py`'s `detect_drift_for_issue` for the changed
+  key. It always re-pulls the issue's live full content (never trusts the
+  webhook payload/changelog, which don't reliably carry description) and
+  flips any non-Suspect link for that key to Suspect if the hash no longer
+  matches. The webhook path swallows failures here (stale credentials,
+  Jira briefly unreachable) so recording that the webhook was delivered
+  never fails because of it.
+- **Link state model (issue #18):** `RequirementLink.state` only ever
+  stores `covered` or `suspect` - `stale` (the linked test no longer
+  appears in the current inventory) and `orphaned` (the linked Jira key no
+  longer resolves) are cheap to derive from current data and are resolved
+  at read time instead (`backend/requirement_links.py`'s
+  `resolve_effective_state`), rather than needing their own event-driven
+  detection.
+- **Plain-language change summary (issue #19):** when a link flips to
+  Suspect, `backend/change_summary.py` asks Claude (`claude-opus-5`) to
+  describe what meaningfully changed, for a human deciding whether their
+  test still covers it - e.g. "acceptance criterion 3 now requires login
+  before checkout" instead of a raw before/after text dump. Requires
+  `ANTHROPIC_API_KEY` to be set; without it (or on any API failure), the
+  Suspect flag is still set correctly and `change_summary` is just `null`
+  - this is enrichment on the mechanism, not a prerequisite for it.
+- **Manual "Reviewed" action (issue #20):** `POST
+  /api/requirement-links/{id}/reviewed` is the *only* way a Suspect link
+  is ever cleared - it re-pulls the requirement's current content,
+  re-snapshots the hash, and sets state back to `covered`. There is
+  deliberately no auto-clear path anywhere in this mechanism; per
+  CLAUDE.md, silently clearing a Suspect flag would hide the exact problem
+  it exists to surface. Returns `400` if the Jira key no longer resolves
+  (an orphaned link has nothing current to review against).
+
+The frontend surfaces this as a "Link Health" table below the existing
+coverage table in `CoverageView.tsx`, with a "Mark reviewed" button on
+Suspect rows.
+
 ## Design notes for whoever picks up the next issue
 
 - This is single-tenant for now — `JiraConnection` is a one-row table,
@@ -421,10 +473,12 @@ against live Google in one real run — Playwright itself marked it
   encryption at rest) before any multi-user or production deployment.
 - `GET`/`DELETE` don't require re-sending credentials — they operate on
   whatever's already stored.
-- `/api/jira/requirements` live-fetches from Jira on every call — no
-  caching or persistence yet (deliberately out of scope for #7; that's
-  really issues #16/#17/#18's territory - hashing fields, drift detection,
-  the Covered/Suspect/Stale/Orphaned link-state model).
+- `/api/jira/requirements` and `/api/coverage` still live-fetch from Jira
+  on every call — no caching or persistence for *those* endpoints.
+  `/api/requirement-links` is the one place requirement content actually
+  gets persisted (as a snapshot on each `RequirementLink`), since Milestone
+  4's suspect-link mechanism needs something durable to hash and compare
+  against — see "Requirement-change detection and suspect links" above.
 - Default issue types pulled are `Story` and `Task` (not `Epic` or
   `Subtask`) - overridable via `?issue_types=Epic,Bug`.
 - Tests mock `requests.get`/`requests.post` directly (`unittest.mock.patch`)

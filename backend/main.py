@@ -23,19 +23,22 @@ from sqlalchemy.orm import Session
 
 from backend.auth import require_ingest_api_key, require_webhook_token
 from backend.db import get_db, init_db
+from backend.drift_detection import detect_drift_for_issue
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_polling import poll_for_changes
-from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirements
+from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirement, pull_requirements
 from backend.models import (
     JiraConnection,
     JiraPollState,
     JiraWebhookEvent,
+    RequirementLink,
     SourceTestRecord,
     TestRun,
     TestRunRecord,
     utcnow,
 )
 from backend.requirement_coverage import build_coverage
+from backend.requirement_links import list_requirement_links, mark_reviewed, sync_requirement_links
 from backend.schemas import (
     CoverageResponse,
     IngestRunRequest,
@@ -47,6 +50,8 @@ from backend.schemas import (
     JiraRequirementsResponse,
     JiraWebhookAck,
     JiraWebhookEventOut,
+    RequirementLinkOut,
+    RequirementLinksResponse,
 )
 from backend.test_inventory import build_inventory
 
@@ -206,9 +211,9 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
     webhook feature), which needs no OAuth - see backend/README.md for the
     exact setup steps and why the secret is a query param, not a header.
 
-    This just records the event; it doesn't itself decide anything
-    changed or flip any Suspect state - that's issue #17 (drift
-    detection), which will read from this table.
+    This records the event, then runs drift detection (issue #17) for the
+    issue it names, if a Jira connection is configured - without one
+    there's no way to re-pull the issue's live content to compare against.
     """
     issue = payload.get("issue") or {}
     webhook_event = payload.get("webhookEvent", "")
@@ -220,6 +225,20 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
         raw_payload=payload,
     )
     db.add(event)
+
+    if event.issue_key:
+        connection = db.query(JiraConnection).first()
+        if connection is not None:
+            client = JiraClient(connection.site_url, connection.email, connection.api_token)
+            try:
+                detect_drift_for_issue(db, client, event.issue_key)
+            except Exception:
+                # Recording that the webhook was delivered must succeed
+                # even if re-checking Jira for drift can't (stale stored
+                # credentials, Jira briefly unreachable, etc.) - the event
+                # is still durably recorded either way, so nothing is lost.
+                pass
+
     db.commit()
 
     return JiraWebhookAck(received=True, issue_key=event.issue_key, webhook_event=webhook_event)
@@ -281,6 +300,8 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
                 raw_payload=issue,
             )
         )
+        if issue.get("key"):
+            detect_drift_for_issue(db, client, issue["key"])
 
     if poll_state is None:
         poll_state = JiraPollState(project_key=project_key, last_polled_at=poll_started_at)
@@ -345,3 +366,84 @@ def get_requirement_coverage(
         covered=covered_count,
         uncovered=len(coverage) - covered_count,
     )
+
+
+@app.get("/api/requirement-links", response_model=RequirementLinksResponse)
+def get_requirement_links(
+    project_key: str,
+    issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
+    db: Session = Depends(get_db),
+) -> RequirementLinksResponse:
+    """Return every requirement<->test link for a Jira project, with its
+    suspect-link state (Milestone 4, issue #18).
+
+    Also syncs new links into existence (issue #16): any (jira_key, test)
+    pair newly visible in the inventory gets hashed and stored here for
+    the first time. Requires a Jira connection to already be set up via
+    POST /api/jira/connection. Not authenticated (read-only, local-only
+    use, same posture as the other GET endpoints).
+    """
+    connection = db.query(JiraConnection).first()
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+
+    client = JiraClient(connection.site_url, connection.email, connection.api_token)
+    types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
+    inventory_entries = build_inventory(db)
+
+    try:
+        requirements = pull_requirements(client, project_key, issue_types=types)
+    except JiraAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    sync_requirement_links(db, requirements, inventory_entries)
+    db.commit()
+
+    links = list_requirement_links(db, project_key, requirements, inventory_entries)
+    return RequirementLinksResponse(project_key=project_key, links=[link.to_dict() for link in links])
+
+
+@app.post("/api/requirement-links/{link_id}/reviewed", response_model=RequirementLinkOut)
+def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict:
+    """Manually clear a link's Suspect state by re-snapshotting it against
+    Jira's current content (Milestone 4, issue #20).
+
+    The only way a Suspect link is ever cleared - deliberately no
+    auto-clear path, per CLAUDE.md's differentiator: a human has to look
+    at the requirement's current content and decide the linked test still
+    covers it. Requires a Jira connection (to re-pull that content) and
+    fails if the link's Jira key no longer resolves (an "orphaned" link -
+    there's nothing current to review it against).
+    """
+    link = db.get(RequirementLink, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail="No such requirement link")
+
+    connection = db.query(JiraConnection).first()
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+
+    client = JiraClient(connection.site_url, connection.email, connection.api_token)
+    try:
+        requirement = pull_requirement(client, link.jira_key)
+    except JiraAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    if requirement is None:
+        raise HTTPException(
+            status_code=400, detail=f"{link.jira_key} no longer resolves in Jira - nothing to review against"
+        )
+
+    mark_reviewed(link, requirement, utcnow())
+    db.commit()
+    db.refresh(link)
+    return {
+        "id": link.id,
+        "jira_key": link.jira_key,
+        "test_file": link.test_file,
+        "test_title": link.test_title,
+        "state": link.state,
+        "change_summary": link.change_summary,
+        "linked_at": link.linked_at.isoformat(),
+        "last_reviewed_at": link.last_reviewed_at.isoformat() if link.last_reviewed_at else None,
+    }

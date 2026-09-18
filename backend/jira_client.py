@@ -46,6 +46,20 @@ class JiraClient:
         """Call /myself to both validate credentials and identify the connected account."""
         return self._get("/rest/api/3/myself")
 
+    def get_issue(self, key: str, fields: list[str] | None = None) -> dict | None:
+        """Fetch one issue by key. Returns None (rather than raising) if the
+        issue doesn't exist or isn't visible to this account - drift
+        detection (issue #17) treats that the same way either way: the
+        link's "orphaned" state is derived from this, not a hard failure.
+        """
+        fields = fields or ["summary", "description"]
+        try:
+            return self._get(f"/rest/api/3/issue/{key}", params={"fields": ",".join(fields)})
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                return None
+            raise
+
     def search_issues(self, jql: str, fields: list[str] | None = None) -> list[dict]:
         """Return every issue matching a JQL query, paging via nextPageToken.
 

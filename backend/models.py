@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db import Base
@@ -133,3 +133,40 @@ class JiraPollState(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_key: Mapped[str] = mapped_column(String, unique=True)
     last_polled_at: Mapped[datetime] = mapped_column()
+
+
+class RequirementLink(Base):
+    """One requirement<->test link and its suspect-link state (Milestone 4,
+    issues #16/#17/#18/#20).
+
+    Created the first time a test's jira_keys are observed referencing a
+    given key (see requirement_links.sync_requirement_links) -
+    content_hash/content_snapshot capture the requirement's substantive
+    fields at that moment (issue #16, "hash at link time"). Drift detection
+    (issue #17) recomputes the hash from live Jira content whenever a
+    webhook/poll event reports that issue as changed, and flips state to
+    "suspect" on a mismatch. This never auto-clears - only the "reviewed"
+    action (issue #20) re-snapshots content and sets state back to
+    "covered", on purpose (see CLAUDE.md's differentiator: hiding drift
+    automatically would hide the exact problem this feature exists to
+    surface).
+
+    "stale" (linked test no longer in the inventory) and "orphaned" (linked
+    Jira key no longer resolves) aren't stored here - they're cheap to
+    derive from current inventory/Jira data at read time. See
+    requirement_links.resolve_effective_state.
+    """
+
+    __tablename__ = "requirement_links"
+    __table_args__ = (UniqueConstraint("jira_key", "test_file", "test_title"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    jira_key: Mapped[str] = mapped_column(String, index=True)
+    test_file: Mapped[str] = mapped_column(String)
+    test_title: Mapped[str] = mapped_column(String)
+    state: Mapped[str] = mapped_column(String, default="covered")  # "covered" | "suspect"
+    content_hash: Mapped[str] = mapped_column(String)
+    content_snapshot: Mapped[dict] = mapped_column(JSON)
+    change_summary: Mapped[str | None] = mapped_column(String, nullable=True)
+    linked_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)

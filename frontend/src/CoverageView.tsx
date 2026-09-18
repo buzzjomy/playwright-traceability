@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
-import { fetchCoverage, type CoverageResponse } from './api';
+import { fetchCoverage, fetchRequirementLinks, markLinkReviewed, type CoverageResponse, type RequirementLink } from './api';
 import { JiraKeyLink } from './JiraKeyLink';
+
+// Reuses the pass/fail/flaky badge styling from the inventory table -
+// "covered" reads as healthy, "suspect" as needs-attention (same as
+// flaky), "stale"/"orphaned" as broken links (same as failed/never-run).
+const LINK_STATE_CLASS: Record<RequirementLink['state'], string> = {
+  covered: 'status-passed',
+  suspect: 'status-flaky',
+  stale: 'status-never-run',
+  orphaned: 'status-failed',
+};
 
 // Per-viewer convenience only (which project key you last looked at) -
 // never shared, never read by the backend. Wrapped in try/catch since
@@ -28,6 +38,10 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [links, setLinks] = useState<RequirementLink[] | null>(null);
+  const [linksError, setLinksError] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+
   function load(key: string) {
     setLoading(true);
     setError(null);
@@ -38,6 +52,21 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+
+    setLinksError(null);
+    fetchRequirementLinks(key)
+      .then((result) => setLinks(result.links))
+      .catch((err: Error) => setLinksError(err.message));
+  }
+
+  function reviewLink(linkId: number) {
+    setReviewingId(linkId);
+    markLinkReviewed(linkId)
+      .then((updated) => {
+        setLinks((current) => (current ? current.map((l) => (l.id === linkId ? updated : l)) : current));
+      })
+      .catch((err: Error) => setLinksError(err.message))
+      .finally(() => setReviewingId(null));
   }
 
   useEffect(() => {
@@ -100,6 +129,59 @@ export function CoverageView({ siteUrl }: { siteUrl: string | null }) {
                 ))}
               </tbody>
             </table>
+          )}
+
+          <h3>Link Health</h3>
+          <p className="subtitle">
+            Whether each linked test's requirement has changed since it was linked - the differentiator over "does a
+            link exist at all" (see the coverage table above).
+          </p>
+
+          {linksError && <p className="error">Couldn't load link health: {linksError}</p>}
+
+          {links && (
+            <>
+              {links.length === 0 ? (
+                <p>No requirement links yet.</p>
+              ) : (
+                <table className="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Test</th>
+                      <th>State</th>
+                      <th>Last Reviewed</th>
+                      <th>What Changed</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {links.map((link) => (
+                      <tr key={link.id}>
+                        <td>
+                          <JiraKeyLink jiraKey={link.jira_key} siteUrl={siteUrl} />
+                        </td>
+                        <td className="file-cell">
+                          {link.test_file} — {link.test_title}
+                        </td>
+                        <td>
+                          <span className={`status ${LINK_STATE_CLASS[link.state]}`}>{link.state}</span>
+                        </td>
+                        <td>{link.last_reviewed_at ? new Date(link.last_reviewed_at).toLocaleString() : '—'}</td>
+                        <td>{link.change_summary ?? '—'}</td>
+                        <td>
+                          {link.state === 'suspect' && (
+                            <button onClick={() => reviewLink(link.id)} disabled={reviewingId === link.id}>
+                              {reviewingId === link.id ? 'Reviewing…' : 'Mark reviewed'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
           )}
         </>
       )}

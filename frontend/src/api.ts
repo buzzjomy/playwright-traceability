@@ -44,12 +44,37 @@ export interface CoverageResponse {
   uncovered: number;
 }
 
+export interface RequirementLink {
+  id: number;
+  jira_key: string;
+  test_file: string;
+  test_title: string;
+  state: 'covered' | 'suspect' | 'stale' | 'orphaned';
+  change_summary: string | null;
+  linked_at: string;
+  last_reviewed_at: string | null;
+}
+
+export interface RequirementLinksResponse {
+  project_key: string;
+  links: RequirementLink[];
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) {
     // FastAPI's HTTPException body is {"detail": "..."} - surface that
     // when present, since it's usually more useful than a bare status code
     // (e.g. "No Jira connection configured yet").
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? `${path} returned ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function postJson<T>(path: string): Promise<T> {
+  const response = await fetch(path, { method: 'POST' });
+  if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.detail ?? `${path} returned ${response.status}`);
   }
@@ -66,4 +91,12 @@ export function fetchJiraConnection(): Promise<JiraConnectionStatus> {
 
 export function fetchCoverage(projectKey: string): Promise<CoverageResponse> {
   return getJson(`/api/coverage?project_key=${encodeURIComponent(projectKey)}`);
+}
+
+export function fetchRequirementLinks(projectKey: string): Promise<RequirementLinksResponse> {
+  return getJson(`/api/requirement-links?project_key=${encodeURIComponent(projectKey)}`);
+}
+
+export function markLinkReviewed(linkId: number): Promise<RequirementLink> {
+  return postJson(`/api/requirement-links/${linkId}/reviewed`);
 }

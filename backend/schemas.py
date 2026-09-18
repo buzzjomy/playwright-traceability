@@ -180,3 +180,23 @@ class CoverageResponse(BaseModel):
     total: int
     covered: int
     uncovered: int
+
+
+class RequirementLinkOut(BaseModel):
+    """One requirement<->test link with its effective state (see RequirementLinkView.to_dict)."""
+
+    id: int
+    jira_key: str
+    test_file: str
+    test_title: str
+    state: str
+    change_summary: str | None = None
+    linked_at: str
+    last_reviewed_at: str | None = None
+
+
+class RequirementLinksResponse(BaseModel):
+    """Response body for GET /api/requirement-links."""
+
+    project_key: str
+    links: list[RequirementLinkOut]
