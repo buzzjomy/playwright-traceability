@@ -1,0 +1,50 @@
+name: CI
+
+# Runs on every push/PR - unlike real-jira-integration.yml (daily,
+# schedule/workflow_dispatch only), this needs no secrets, so it's safe
+# to run against untrusted fork PRs too.
+on:
+  push:
+    branches: [master]
+  pull_request: {}
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install static_parser dependencies
+        run: npm install
+        working-directory: static_parser
+
+      - name: Run backend/parser test suite
+        run: pytest
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Typecheck and build
+        run: npm run build
+        working-directory: frontend

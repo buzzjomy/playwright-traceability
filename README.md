@@ -1,5 +1,10 @@
 # Playwright Test Inventory Parsers (Milestone 1)
 
+> New to the dashboard? See [`USER_GUIDE.md`](USER_GUIDE.md) for how to
+> connect Jira, push test data, and use the Test Inventory / Requirement
+> Coverage / Gap Analysis views. This README (and the other `README.md`
+> files linked below) are developer/contributor docs, not an end-user guide.
+
 > Milestone 2 (Jira Integration) is complete — see `backend/README.md` for
 > the FastAPI service, Jira auth flow, requirement pulling, and JSON
 > mapping-file linking (`parser/mapping_parser.py`, issue #9).
