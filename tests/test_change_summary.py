@@ -30,3 +30,21 @@ def test_calls_claude_and_returns_its_text(monkeypatch):
     assert kwargs["model"] == "claude-opus-5"
     assert "new summary" in kwargs["messages"][0]["content"]
     assert "old summary" in kwargs["messages"][0]["content"]
+
+
+def test_anthropic_model_env_var_overrides_default(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+
+    text_block = MagicMock(type="text", text="Something changed.")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = MagicMock(content=[text_block])
+
+    with patch("backend.change_summary.anthropic.Anthropic", return_value=mock_client):
+        summarize_change(
+            {"summary": "old", "description_text": "", "acceptance_criteria": []},
+            JiraRequirement(key="KAN-4", summary="new", description_text="", acceptance_criteria=[]),
+        )
+
+    _, kwargs = mock_client.messages.create.call_args
+    assert kwargs["model"] == "claude-sonnet-5"

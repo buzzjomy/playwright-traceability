@@ -24,7 +24,7 @@ import anthropic
 
 from backend.test_inventory import InventoryEntry
 
-_MODEL = "claude-opus-5"
+_DEFAULT_MODEL = "claude-opus-5"
 
 _PROMPT_TEMPLATE = """A QA engineer wants to know which specific acceptance criteria of a Jira \
 requirement are actually verified by its linked automated tests. Judge only from the test \
@@ -61,6 +61,20 @@ class CriterionGapResult:
     def to_dict(self) -> dict:
         """Return a JSON-serializable dict representation of this result."""
         return {"criterion": self.criterion, "covered": self.covered, "reasoning": self.reasoning}
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Strip a leading/trailing ```/```json code fence some models wrap JSON responses in."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    first_newline = stripped.find("\n")
+    if first_newline == -1:
+        return stripped
+    stripped = stripped[first_newline + 1 :]
+    if stripped.endswith("```"):
+        stripped = stripped[:-3]
+    return stripped.strip()
 
 
 def _format_tests_block(linked_tests: list[InventoryEntry]) -> str:
@@ -103,7 +117,7 @@ def analyze_gap(acceptance_criteria: list[str], linked_tests: list[InventoryEntr
     client = anthropic.Anthropic()
     try:
         response = client.messages.create(
-            model=_MODEL,
+            model=os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL),
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -112,7 +126,7 @@ def analyze_gap(acceptance_criteria: list[str], linked_tests: list[InventoryEntr
 
     text = next((block.text for block in response.content if block.type == "text"), "")
     try:
-        parsed = json.loads(text)
+        parsed = json.loads(_strip_markdown_fences(text))
     except json.JSONDecodeError as exc:
         raise GapAnalysisError(f"Claude did not return valid JSON: {exc}") from exc
 

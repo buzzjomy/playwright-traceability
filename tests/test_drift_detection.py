@@ -127,6 +127,40 @@ def test_deleted_issue_is_not_treated_as_drift():
     assert link.state == COVERED
 
 
+def test_multiple_links_sharing_a_prior_hash_call_summarize_change_once():
+    """10 tests linked to the same requirement, all linked against the same
+    prior snapshot, must cost one Claude call, not ten (issue: LLM dedup)."""
+    db = _db_session()
+    client = JiraClient("https://example.atlassian.net", "me@example.com", "token")
+    link_a = _add_link(db, content_hash="original-hash")
+    link_b = RequirementLink(
+        jira_key="KAN-4",
+        test_file="checkout.spec.ts",
+        test_title="should checkout",
+        state=COVERED,
+        content_hash="original-hash",
+        content_snapshot={"summary": "Homepage loads", "description_text": "Loads.", "acceptance_criteria": []},
+    )
+    db.add(link_b)
+    db.commit()
+
+    issue_response = {"key": "KAN-4", "fields": {"summary": "Homepage loads fast now", "description": None}}
+    with patch("backend.jira_client.requests.get") as mock_get:
+        mock_get.return_value = _fake_response(200, issue_response)
+        with patch("backend.drift_detection.summarize_change", return_value="The summary was reworded.") as mock_summarize:
+            flipped = detect_drift_for_issue(db, client, "KAN-4")
+
+    assert flipped == 2
+    db.commit()
+    db.refresh(link_a)
+    db.refresh(link_b)
+    assert link_a.state == SUSPECT
+    assert link_b.state == SUSPECT
+    assert link_a.change_summary == "The summary was reworded."
+    assert link_b.change_summary == "The summary was reworded."
+    mock_summarize.assert_called_once()
+
+
 def test_summarize_change_failure_still_flips_state():
     """A broken/unconfigured LLM call must not block the safety-relevant
     Suspect flag from being set (issue #19 is enrichment, not a

@@ -1,8 +1,11 @@
+import json
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from parser.static_parser import parse_spec_directory
+from parser.static_parser import _NODE_SCRIPT, _run_node_parser, parse_spec_directory
 
 SAMPLE_SPECS_DIR = Path(__file__).parent.parent / "samples" / "sample-specs"
 
@@ -71,3 +74,20 @@ def test_assertions_are_captured_as_raw_source_text(records):
 def test_single_assertion_test_captures_one_entry(records):
     rec = next(r for r in records if r.title == "should reject invalid password")
     assert rec.assertions == ["expect(true).toBe(true)"]
+
+
+def test_run_node_parser_streams_path_pairs_over_stdin_not_argv():
+    # A large project's file count could otherwise blow past the OS's
+    # ARG_MAX limit if passed as CLI arguments.
+    with patch("parser.static_parser.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="[]", spec=subprocess.CompletedProcess)
+        _run_node_parser([Path("a.spec.ts"), Path("b.spec.ts")])
+
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["node", str(_NODE_SCRIPT), "--stdin"]
+
+    path_pairs = json.loads(kwargs["input"])
+    assert path_pairs == [
+        [str(Path("a.spec.ts").resolve()), "a.spec.ts"],
+        [str(Path("b.spec.ts").resolve()), "b.spec.ts"],
+    ]

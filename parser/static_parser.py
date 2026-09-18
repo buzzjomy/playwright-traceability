@@ -41,16 +41,18 @@ def _run_node_parser(files: list[Path]) -> list[dict]:
 
     Each file is passed as a (resolved absolute path, original path) pair so
     the Node script can read from disk while still emitting the caller's
-    original (typically repo-relative) path in the "file" field.
+    original (typically repo-relative) path in the "file" field. Pairs are
+    streamed to the script as JSON over stdin rather than as CLI arguments,
+    since a large project's file count could otherwise push the argument
+    list past the OS's ARG_MAX limit.
     """
     if not files:
         return []
-    path_pairs: list[str] = []
-    for f in files:
-        path_pairs.extend([str(f.resolve()), str(f)])
+    path_pairs = [[str(f.resolve()), str(f)] for f in files]
     result = subprocess.run(
-        ["node", str(_NODE_SCRIPT), *path_pairs],
+        ["node", str(_NODE_SCRIPT), "--stdin"],
         cwd=_STATIC_PARSER_DIR,
+        input=json.dumps(path_pairs),
         capture_output=True,
         text=True,
         check=True,

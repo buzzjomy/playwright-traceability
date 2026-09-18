@@ -22,7 +22,7 @@ import anthropic
 
 from backend.jira_requirements import JiraRequirement
 
-_MODEL = "claude-opus-5"
+_DEFAULT_MODEL = "claude-opus-5"
 
 _PROMPT_TEMPLATE = """A Jira requirement changed after Playwright tests were linked to it. \
 Describe in one or two plain-language sentences what meaningfully changed, for a QA \
@@ -61,7 +61,7 @@ def summarize_change(previous: dict, current: JiraRequirement) -> str | None:
         after_ac=current.acceptance_criteria,
     )
     response = client.messages.create(
-        model=_MODEL,
+        model=os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL),
         max_tokens=300,
         output_config={"effort": "low"},
         messages=[{"role": "user", "content": prompt}],

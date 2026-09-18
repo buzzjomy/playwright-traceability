@@ -25,7 +25,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from backend.models import SourceTestRecord, TestRun, TestRunRecord
 
@@ -98,8 +99,28 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
     # TestRunRecord is append-only across every push - every row (not just
     # the latest) is kept here so a per-project trend history can be built,
     # in run order, and the latest one still drives current status/tags.
+    # Windowed in SQL to the most recent MAX_HISTORY_POINTS rows per
+    # (file, title, project), rather than loading the whole table and
+    # slicing in Python, so memory stays bounded as run history grows.
+    row_number = (
+        func.row_number()
+        .over(
+            partition_by=(TestRunRecord.file, TestRunRecord.title, TestRunRecord.project),
+            order_by=TestRunRecord.run_id.desc(),
+        )
+        .label("rn")
+    )
+    windowed = select(TestRunRecord, row_number).subquery()
+    windowed_record = aliased(TestRunRecord, windowed)
+
     all_runs_by_key: dict[tuple[str, str, str], list[TestRunRecord]] = defaultdict(list)
-    for record in db.query(TestRunRecord).order_by(TestRunRecord.run_id.asc()).all():
+    recent_records = (
+        db.query(windowed_record)
+        .filter(windowed.c.rn <= MAX_HISTORY_POINTS)
+        .order_by(windowed_record.run_id.asc())
+        .all()
+    )
+    for record in recent_records:
         all_runs_by_key[(record.file, record.title, record.project)].append(record)
 
     runs_by_test: dict[tuple[str, str], list[TestRunRecord]] = defaultdict(list)
@@ -144,7 +165,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
             for run in sorted(latest_runs, key=lambda r: r.project):
                 history = [
                     TrendPoint(run_id=r.run_id, pushed_at=pushed_at_by_run_id[r.run_id], status=r.status)
-                    for r in all_runs_by_key[(run.file, run.title, run.project)][-MAX_HISTORY_POINTS:]
+                    for r in all_runs_by_key[(run.file, run.title, run.project)]
                 ]
                 entries.append(
                     InventoryEntry(

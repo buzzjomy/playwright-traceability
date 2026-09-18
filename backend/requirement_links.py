@@ -71,7 +71,9 @@ def sync_requirement_links(
     triggers this).
     """
     requirement_by_key = {r.key: r for r in requirements}
-    existing = {(l.jira_key, l.test_file, l.test_title) for l in db.query(RequirementLink).all()}
+    existing = set(
+        db.query(RequirementLink.jira_key, RequirementLink.test_file, RequirementLink.test_title).all()
+    )
 
     seen_this_call: set[tuple[str, str, str]] = set()
     for entry in inventory_entries:

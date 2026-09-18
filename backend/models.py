@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db import Base
@@ -53,6 +53,13 @@ class TestRunRecord(Base):
     parser.models.TestRecord, plus the run it belongs to."""
 
     __tablename__ = "test_run_records"
+    __table_args__ = (
+        # Backs build_inventory's windowed per-(file, title, project) history
+        # query and reconciliation lookups - without it, both are sequential
+        # scans once the table has any real run history.
+        Index("ix_test_run_records_file_title_project_run_id", "file", "title", "project", "run_id"),
+        Index("ix_test_run_records_run_id", "run_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id"), nullable=False)
@@ -87,6 +94,7 @@ class SourceTestRecord(Base):
     """
 
     __tablename__ = "source_test_records"
+    __table_args__ = (Index("ix_source_test_records_file_title", "file", "title"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     source_type: Mapped[str] = mapped_column(String)  # "static" | "feature"
@@ -159,7 +167,10 @@ class RequirementLink(Base):
     """
 
     __tablename__ = "requirement_links"
-    __table_args__ = (UniqueConstraint("jira_key", "test_file", "test_title"),)
+    __table_args__ = (
+        UniqueConstraint("jira_key", "test_file", "test_title"),
+        Index("ix_requirement_links_test_file_test_title", "test_file", "test_title"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     jira_key: Mapped[str] = mapped_column(String, index=True)

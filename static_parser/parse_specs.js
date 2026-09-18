@@ -16,12 +16,12 @@
 // callers can pass an absolute path to read while keeping a repo-relative
 // path in the output).
 
-'use strict';
+"use strict";
 
-const ts = require('typescript');
-const fs = require('fs');
+const ts = require("typescript");
+const fs = require("fs");
 
-const TEST_LEVEL_MODIFIERS = new Set(['skip', 'only', 'fixme', 'fail']);
+const TEST_LEVEL_MODIFIERS = new Set(["skip", "only", "fixme", "fail"]);
 
 /**
  * Unwind a call target expression into its dotted member path.
@@ -84,7 +84,10 @@ function getChainRootIdentifier(node) {
  * misread as further assertions.
  */
 function collectAssertions(node, sourceFile, out) {
-  if (ts.isCallExpression(node) && getChainRootIdentifier(node.expression) === 'expect') {
+  if (
+    ts.isCallExpression(node) &&
+    getChainRootIdentifier(node.expression) === "expect"
+  ) {
     out.push(node.getText(sourceFile));
     return;
   }
@@ -104,7 +107,10 @@ function findOptionsObjectArgument(args) {
 function extractTagOption(optionsArg) {
   if (!optionsArg) return [];
   const tagProp = optionsArg.properties.find(
-    (p) => ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) && p.name.text === 'tag'
+    (p) =>
+      ts.isPropertyAssignment(p) &&
+      ts.isIdentifier(p.name) &&
+      p.name.text === "tag",
   );
   if (!tagProp) return [];
   const init = tagProp.initializer;
@@ -122,8 +128,9 @@ function extractTagOption(optionsArg) {
  */
 function getLeadingCommentsText(node, sourceFile) {
   const fullText = sourceFile.getFullText();
-  const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) || [];
-  return ranges.map((r) => fullText.slice(r.pos, r.end)).join('\n');
+  const ranges =
+    ts.getLeadingCommentRanges(fullText, node.getFullStart()) || [];
+  return ranges.map((r) => fullText.slice(r.pos, r.end)).join("\n");
 }
 
 /**
@@ -132,8 +139,14 @@ function getLeadingCommentsText(node, sourceFile) {
  * `filePath` is read from disk; `displayPath` is what's emitted as "file".
  */
 function parseFile(filePath, displayPath) {
-  const text = fs.readFileSync(filePath, 'utf8');
-  const sourceFile = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const text = fs.readFileSync(filePath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
   const records = [];
 
   /**
@@ -187,13 +200,16 @@ function parseFile(filePath, displayPath) {
   function visit(node, ancestors) {
     if (ts.isCallExpression(node)) {
       const memberPath = getMemberPath(node.expression);
-      if (memberPath && memberPath[0] === 'test') {
+      if (memberPath && memberPath[0] === "test") {
         if (memberPath.length === 1) {
           handleTest(node, ancestors);
-        } else if (memberPath[1] === 'describe') {
+        } else if (memberPath[1] === "describe") {
           handleDescribe(node, ancestors);
           return; // already recursed into the body above with updated ancestors
-        } else if (memberPath.length === 2 && TEST_LEVEL_MODIFIERS.has(memberPath[1])) {
+        } else if (
+          memberPath.length === 2 &&
+          TEST_LEVEL_MODIFIERS.has(memberPath[1])
+        ) {
           handleTest(node, ancestors);
         }
       }
@@ -205,14 +221,46 @@ function parseFile(filePath, displayPath) {
   return records;
 }
 
+/** Read all of stdin as a single UTF-8 string. */
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => (data += chunk));
+    process.stdin.on("end", () => resolve(data));
+    process.stdin.on("error", reject);
+  });
+}
+
 /**
- * CLI entry point: parse (actualPath, displayPath) pairs from argv and
- * print every file's records as one combined JSON array to stdout.
+ * CLI entry point: parse (actualPath, displayPath) pairs and print every
+ * file's records as one combined JSON array to stdout.
+ *
+ * Pairs come from argv by default, or from a JSON array of
+ * [actualPath, displayPath] pairs on stdin with `--stdin` - needed once a
+ * project has enough spec files that passing every path pair as CLI
+ * arguments risks the OS's ARG_MAX limit (parser/static_parser.py switches
+ * to this mode).
  */
-function main() {
+async function main() {
   const args = process.argv.slice(2);
+
+  if (args[0] === "--stdin") {
+    const raw = await readStdin();
+    const pathPairs = JSON.parse(raw);
+    const allRecords = [];
+    for (const [actualPath, displayPath] of pathPairs) {
+      allRecords.push(...parseFile(actualPath, displayPath));
+    }
+    process.stdout.write(JSON.stringify(allRecords, null, 2));
+    return;
+  }
+
   if (args.length === 0 || args.length % 2 !== 0) {
-    console.error('Usage: node parse_specs.js <actualPath1> <displayPath1> [<actualPath2> <displayPath2> ...]');
+    console.error(
+      "Usage: node parse_specs.js <actualPath1> <displayPath1> [<actualPath2> <displayPath2> ...]\n" +
+        "       node parse_specs.js --stdin   (reads a JSON array of [actualPath, displayPath] pairs from stdin)",
+    );
     process.exit(1);
   }
 
@@ -224,4 +272,7 @@ function main() {
   process.stdout.write(JSON.stringify(allRecords, null, 2));
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

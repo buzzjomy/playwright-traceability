@@ -72,6 +72,32 @@ def test_successful_analysis_zips_criteria_with_claude_results(monkeypatch):
     assert "expect(page.getByTestId('results')).toBeVisible()" in prompt
 
 
+def test_markdown_fenced_json_is_parsed(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    mock_client = MagicMock()
+    fenced_text = "```json\n" + json.dumps([{"covered": True, "reasoning": "The title mentions it."}]) + "\n```"
+    mock_client.messages.create.return_value = MagicMock(content=[MagicMock(type="text", text=fenced_text)])
+
+    with patch("backend.semantic_gap.anthropic.Anthropic", return_value=mock_client):
+        results = analyze_gap(["Results are shown"], [_entry()])
+
+    assert results[0].covered is True
+    assert results[0].reasoning == "The title mentions it."
+
+
+def test_anthropic_model_env_var_overrides_default(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _text_response([{"covered": True, "reasoning": "yes"}])
+
+    with patch("backend.semantic_gap.anthropic.Anthropic", return_value=mock_client):
+        analyze_gap(["Results are shown"], [_entry()])
+
+    _, kwargs = mock_client.messages.create.call_args
+    assert kwargs["model"] == "claude-sonnet-5"
+
+
 def test_malformed_json_raises_gap_analysis_error(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     mock_client = MagicMock()

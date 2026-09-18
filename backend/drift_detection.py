@@ -46,17 +46,24 @@ def detect_drift_for_issue(db: Session, client: JiraClient, issue_key: str) -> i
 
     new_hash = hash_requirement_content(requirement)
     flipped = 0
+    # Multiple links against the same requirement typically share the same
+    # content_hash (they were all linked against the same prior snapshot),
+    # so summarize_change's input is identical across them - cache by that
+    # hash rather than calling Claude once per link.
+    summary_by_previous_hash: dict[str, str | None] = {}
     for link in links:
         if link.content_hash == new_hash:
             continue
-        # The LLM summary is enrichment on top of the hash-based flag
-        # itself (issue #19) - a failure here (no API key, a transient
-        # API error) must not prevent the Suspect flag from being set,
-        # which is the actual safety-relevant behavior.
-        try:
-            link.change_summary = summarize_change(link.content_snapshot, requirement)
-        except Exception:
-            link.change_summary = None
+        if link.content_hash not in summary_by_previous_hash:
+            # The LLM summary is enrichment on top of the hash-based flag
+            # itself (issue #19) - a failure here (no API key, a transient
+            # API error) must not prevent the Suspect flag from being set,
+            # which is the actual safety-relevant behavior.
+            try:
+                summary_by_previous_hash[link.content_hash] = summarize_change(link.content_snapshot, requirement)
+            except Exception:
+                summary_by_previous_hash[link.content_hash] = None
+        link.change_summary = summary_by_previous_hash[link.content_hash]
         link.state = SUSPECT
         flipped += 1
     return flipped
