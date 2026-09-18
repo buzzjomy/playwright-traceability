@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -117,7 +118,7 @@ def test_normalize_file_path_returns_original_without_a_repo_root():
     assert normalize_file_path("some/path.spec.ts", repo_root=None) == "some/path.spec.ts"
 
 
-def test_build_payload_normalizes_paths_so_report_and_specs_reconcile():
+def test_build_payload_normalizes_paths_so_report_and_specs_reconcile(tmp_path):
     # Regression test for a real bug: report.json (Playwright's own
     # output) reports "file" relative to ITS rootDir (e.g.
     # "homepage.spec.ts"), while static_parser invoked with a
@@ -125,8 +126,19 @@ def test_build_payload_normalizes_paths_so_report_and_specs_reconcile():
     # "demo/google-search/tests/homepage.spec.ts" - different strings
     # for the same physical file, which silently broke reconciliation in
     # backend/test_inventory.py until paths were normalized here.
+    #
+    # demo/google-search/report.json's committed rootDir is an absolute
+    # path from whichever machine last regenerated it - rewritten here to
+    # this machine's real path so the test exercises normalization
+    # portably (CI, another contributor's machine) instead of only
+    # passing by accident of whose path happens to match the fixture.
+    raw_report = json.loads((DEMO_DIR / "report.json").read_text())
+    raw_report["config"]["rootDir"] = str(DEMO_DIR / "tests")
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(raw_report))
+
     payload, _ = build_payload(
-        report=str(DEMO_DIR / "report.json"),
+        report=str(report_path),
         specs_dir=str(DEMO_DIR / "tests"),
         features_dir=None,
     )
