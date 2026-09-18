@@ -161,6 +161,46 @@ h1 {
   color: #fde68a;
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
+.selected-row {
+  background: #1f2937;
+}
+
+.detail-panel {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #333;
+  border-radius: 0.4rem;
+}
+
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.detail-toolbar button {
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.3rem;
+  border: 1px solid #444;
+  background: #1f2937;
+  color: inherit;
+  cursor: pointer;
+}
+
+.detail-toolbar button:hover:not(:disabled) {
+  background: #374151;
+}
+
+.detail-toolbar button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .gap-analysis-list {
   list-style: none;
   margin: 0.4rem 0;
