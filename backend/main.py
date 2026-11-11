@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.auth import require_ingest_api_key, require_webhook_token
 from backend.db import SessionLocal, get_db, init_db
+from backend.forge_auth import require_forge_invocation_token
 from backend.drift_detection import detect_drift_for_issue
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_polling import poll_for_changes
@@ -146,7 +147,11 @@ def _status_from_connection(connection: JiraConnection) -> JiraConnectionStatus:
     )
 
 
-@app.post("/api/jira/connection", response_model=JiraConnectionStatus)
+@app.post(
+    "/api/jira/connection",
+    response_model=JiraConnectionStatus,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def create_jira_connection(payload: JiraConnectionCreate, db: Session = Depends(get_db)) -> JiraConnectionStatus:
     """Validate the given Jira credentials against the real API, then store them.
 
@@ -166,7 +171,11 @@ def create_jira_connection(payload: JiraConnectionCreate, db: Session = Depends(
     )
 
 
-@app.get("/api/jira/connection", response_model=JiraConnectionStatus)
+@app.get(
+    "/api/jira/connection",
+    response_model=JiraConnectionStatus,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_jira_connection(db: Session = Depends(get_db)) -> JiraConnectionStatus:
     """Return the current Jira connection status, if one has been set up.
 
@@ -178,14 +187,22 @@ def get_jira_connection(db: Session = Depends(get_db)) -> JiraConnectionStatus:
     return _status_from_connection(connection)
 
 
-@app.delete("/api/jira/connection", status_code=204)
+@app.delete(
+    "/api/jira/connection",
+    status_code=204,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def delete_jira_connection(db: Session = Depends(get_db)) -> None:
     """Remove the current Jira connection, if any."""
     db.query(JiraConnection).delete()
     db.commit()
 
 
-@app.get("/api/jira/requirements", response_model=JiraRequirementsResponse)
+@app.get(
+    "/api/jira/requirements",
+    response_model=JiraRequirementsResponse,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_jira_requirements(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
@@ -301,7 +318,11 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
     return JiraWebhookAck(received=True, issue_key=event.issue_key, webhook_event=webhook_event)
 
 
-@app.get("/api/webhooks/jira/events", response_model=list[JiraWebhookEventOut])
+@app.get(
+    "/api/webhooks/jira/events",
+    response_model=list[JiraWebhookEventOut],
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def list_jira_webhook_events(limit: int = Query(default=50, le=200), db: Session = Depends(get_db)) -> list[JiraWebhookEvent]:
     """List the most recently received webhook events, newest first.
 
@@ -375,7 +396,11 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
     )
 
 
-@app.get("/api/inventory", response_model=InventoryResponse)
+@app.get(
+    "/api/inventory",
+    response_model=InventoryResponse,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
     """Return the reconciled test inventory (issue #12).
 
@@ -388,7 +413,11 @@ def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
     return InventoryResponse(entries=[e.to_dict() for e in build_inventory(db)])
 
 
-@app.get("/api/coverage", response_model=CoverageResponse)
+@app.get(
+    "/api/coverage",
+    response_model=CoverageResponse,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_requirement_coverage(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
@@ -425,7 +454,11 @@ def get_requirement_coverage(
     )
 
 
-@app.get("/api/requirement-links", response_model=RequirementLinksResponse)
+@app.get(
+    "/api/requirement-links",
+    response_model=RequirementLinksResponse,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_requirement_links(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
@@ -460,7 +493,11 @@ def get_requirement_links(
     return RequirementLinksResponse(project_key=project_key, links=[link.to_dict() for link in links])
 
 
-@app.post("/api/requirement-links/{link_id}/reviewed", response_model=RequirementLinkOut)
+@app.post(
+    "/api/requirement-links/{link_id}/reviewed",
+    response_model=RequirementLinkOut,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict:
     """Manually clear a link's Suspect state by re-snapshotting it against
     Jira's current content (Milestone 4, issue #20).
@@ -506,7 +543,11 @@ def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict
     }
 
 
-@app.post("/api/coverage/gap-analysis", response_model=GapAnalysisResponse)
+@app.post(
+    "/api/coverage/gap-analysis",
+    response_model=GapAnalysisResponse,
+    dependencies=[Depends(require_forge_invocation_token)],
+)
 def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_db)) -> GapAnalysisResponse:
     """Judge, per acceptance criterion, whether jira_key's linked tests
     actually cover it (Milestone 5, issues #21/#22) - the differentiator
