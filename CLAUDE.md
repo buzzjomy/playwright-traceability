@@ -256,7 +256,13 @@ links), so Coverage (#31) has what it needs.
 **#33** (project-context auto-detect via `useProductContext`), **#34**
 (manual E2E pass), then Milestone 9 (#35-#39: free-vs-paid decision,
 security review of FIT verification, Marketplace Partner/listing, Atlassian
-review, go-live). Plan details are in the GitHub issues. Design decisions
+review, go-live). **Before real customers: kill the cold starts** - the
+Fly app (`auto_stop_machines`, `min_machines_running = 0` in `fly.toml`)
+and the Postgres instance both scale to zero, and Forge gives a panel call
+~25s with no retries, so a first load after idle can fail (a one-off error
+was seen on first reload after a restart, message not captured; unconfirmed
+cause - if it recurs, capture the text and check `fly logs`). Fix: set
+`min_machines_running = 1`, and turn off Postgres auto-stop. Plan details are in the GitHub issues. Design decisions
 already made for #31: row selection = a `Button` in the Key cell (UI Kit's
 DynamicTable has no row-click; `highlightedRowIndex` is not for selection),
 selected state shown via the button's `appearance`; detail panel = a
