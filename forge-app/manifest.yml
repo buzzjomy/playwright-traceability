@@ -1,0 +1,29 @@
+modules:
+  jira:projectPage:
+    - key: playwright-traceability-project-page
+      resource: main
+      render: native
+      title: Traceability
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+# The FastAPI backend (backend/, deployed to Fly.io - issue #27) this app
+# calls as a Forge Remote. `operations: [fetch]` declares we only call it
+# from the frontend via requestRemote().
+remotes:
+  - key: traceability-backend
+    baseUrl: https://playwright-traceability.fly.dev
+    operations:
+      - fetch
+permissions:
+  scopes: []
+  external:
+    fetch:
+      backend:
+        - remote: traceability-backend
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/79162d82-2e1f-46ed-bd6b-252c13f4c937

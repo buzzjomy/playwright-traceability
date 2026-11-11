@@ -21,6 +21,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -128,6 +129,35 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Playwright Traceability Backend", lifespan=lifespan)
+
+
+def cors_settings_from_env() -> dict | None:
+    """Build CORSMiddleware kwargs from env vars, or None if CORS is off.
+
+    A Forge app's requestRemote() calls this backend directly from the
+    browser (issue #28), so the browser enforces CORS against it. Off by
+    default so existing self-hosted deployments (frontend/ goes through a
+    same-origin dev proxy) are unchanged; opt in with
+    CORS_ALLOW_ORIGINS (comma-separated exact origins) and/or
+    CORS_ALLOW_ORIGIN_REGEX. Credentials stay off - auth here is a bearer
+    token in the Authorization header, never cookies.
+    """
+    origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+    origin_regex = os.environ.get("CORS_ALLOW_ORIGIN_REGEX") or None
+    if not origins and not origin_regex:
+        return None
+    return {
+        "allow_origins": origins,
+        "allow_origin_regex": origin_regex,
+        "allow_methods": ["GET", "POST", "DELETE", "OPTIONS"],
+        "allow_headers": ["*"],
+        "allow_credentials": False,
+    }
+
+
+_cors_settings = cors_settings_from_env()
+if _cors_settings is not None:
+    app.add_middleware(CORSMiddleware, **_cors_settings)
 
 
 def _status_from_connection(connection: JiraConnection) -> JiraConnectionStatus:
