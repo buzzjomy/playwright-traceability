@@ -135,7 +135,7 @@ full-project fetch. Flagged here rather than built, since it's not needed
 for the current MVP/demo scope — raised during a design discussion on
 2026-09-18, not from an actual customer hitting this limit yet.
 
-## Current status (last updated 2026-09-18, later same day)
+## Current status (last updated 2026-11-11)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
 (`parser/report_parser.py`, `parser/static_parser.py` + real TypeScript
@@ -213,6 +213,29 @@ full design.
 Milestone 6 (Defect Linking, v2) is what's left in the original 6-milestone
 plan.
 
+**Milestones 7-9 (Atlassian Forge app) are a new, additive track, in
+progress** (issues #25-#39; plan approved 2026-11-11). The standalone
+`frontend/` dashboard is NOT being replaced - `forge-app/` is a second
+frontend (Forge **UI Kit**, not Custom UI) against the same FastAPI
+backend, called as a Forge **Remote**. Decisions already made: Forge over
+Connect; UI Kit over Custom UI (a full rewrite - no CSS/JSX reuse, custom
+hex colors aren't possible, so the pale-yellow row highlight etc. don't
+carry over); using a Remote forfeits "Runs on Atlassian" eligibility
+(accepted). Done so far: #25/#26 `backend/forge_auth.py` verifies Forge
+Invocation Tokens (RS256, JWKS, `iss`/`aud`/`app.id`) on the 10 dashboard
+routes, off by default behind `REQUIRE_FORGE_AUTH` + `FORGE_APP_ID` (the
+full `ari:cloud:ecosystem::app/<uuid>` from `forge-app/manifest.yml`);
+#27 backend deployed to Fly.io (`playwright-traceability.fly.dev`, region
+sin, Postgres via psycopg v3; `Dockerfile`/`fly.toml`; deploys are manual
+`fly deploy` - no auto-deploy workflow on purpose); #28 `forge-app/`
+walking skeleton installed on pwtrace.atlassian.net and verified end to
+end with a real token. `requestRemote()` runs in the browser, so the
+backend has opt-in CORS (`CORS_ALLOW_ORIGINS`/`CORS_ALLOW_ORIGIN_REGEX`);
+the origin is the customer's Jira site. Next: #29 (CI job for forge-app),
+then Milestone 8 (port InventoryView/CoverageView to UI Kit). Forge CLI
+needs Node 22/24 (use `nvm use 22`; the repo's default Node 20 is
+unsupported by it). Per-issue detail is in GitHub issues #25-#39.
+
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story
 issues in Jira (project "KAN"/"DevTest") with real Acceptance Criteria,
@@ -224,5 +247,4 @@ JQL date literal that silently matched nothing) slipped past every mocked
 test — see `tests/integration/README.md`.
 
 Full backlog for all 6 milestones is in this repo's GitHub Issues, labeled
-`mvp` or `v2`. Milestones 4 (Requirement-Change Detection) and 5
-(Semantic Gap Detection — the actual differentiator) haven't started.
+`mvp` or `v2`.
