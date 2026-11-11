@@ -48,3 +48,22 @@ jobs:
       - name: Typecheck and build
         run: npm run build
         working-directory: frontend
+
+  forge-app-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install forge-app dependencies
+        run: npm ci
+        working-directory: forge-app
+
+      # ESLint only: `forge lint` needs a real Atlassian login (secrets,
+      # unavailable to fork PRs), and `forge deploy` already runs it.
+      - name: Lint
+        run: npm run lint
+        working-directory: forge-app
