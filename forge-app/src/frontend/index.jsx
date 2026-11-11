@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Tab, TabList, TabPanel, Tabs, Text } from '@forge/react';
+import ForgeReconciler, { Tab, TabList, TabPanel, Tabs } from '@forge/react';
+import { CoverageView } from './CoverageView';
 import { InventoryView } from './InventoryView';
 import { fetchJiraConnection } from './lib/forgeApi';
 
 // Mirrors frontend/src/App.tsx: two views behind tabs, and a best-effort
 // lookup of the connected Jira site so Jira keys can render as real links.
-// The Coverage tab is filled in by issues #31/#32.
 const App = () => {
   const [siteUrl, setSiteUrl] = useState(null);
 
@@ -25,7 +25,7 @@ const App = () => {
         <InventoryView siteUrl={siteUrl} />
       </TabPanel>
       <TabPanel>
-        <Text>Requirement Coverage is coming in the next step (issues #31/#32).</Text>
+        <CoverageView siteUrl={siteUrl} />
       </TabPanel>
     </Tabs>
   );

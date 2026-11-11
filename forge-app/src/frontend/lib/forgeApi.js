@@ -28,3 +28,13 @@ export function fetchInventory() {
 export function fetchJiraConnection() {
   return callBackend('/api/jira/connection', 'GET');
 }
+
+/** GET /api/coverage - every requirement in a Jira project with its linked-test count. */
+export function fetchCoverage(projectKey) {
+  return callBackend(`/api/coverage?project_key=${encodeURIComponent(projectKey)}`, 'GET');
+}
+
+/** GET /api/requirement-links - per-link health (covered/suspect/stale/orphaned) for a project. */
+export function fetchRequirementLinks(projectKey) {
+  return callBackend(`/api/requirement-links?project_key=${encodeURIComponent(projectKey)}`, 'GET');
+}
