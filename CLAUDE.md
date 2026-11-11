@@ -243,14 +243,14 @@ Atlassian" eligibility (accepted).
   unit tests), deployed to development as 2.2.0 and visually verified.
 
 **Current live state of the Fly deployment** (not in git): secrets set
-there are DATABASE_URL, INGEST_API_KEY (was missing once; re-generated),
+there are DATABASE_URL, INGEST_API_KEY (was missing once; re-generated), the three JIRA_* ones,
 REQUIRE_FORGE_AUTH=true, FORGE_APP_ID, CORS_ALLOW_ORIGINS=
 https://pwtrace.atlassian.net. The demo project's data was pushed once
 (`scripts.push_test_inventory` with demo/google-search report + specs, run
-id 1). The Fly backend has NO Jira connection yet - set JIRA_SITE_URL,
-JIRA_EMAIL, JIRA_API_TOKEN as Fly secrets (env bootstrap in
-`backend/main.py` creates it on startup). That is required before
-Coverage (#31) works, and also makes Jira keys render as links.
+id 1). The Fly backend HAS a Jira connection (JIRA_SITE_URL, JIRA_EMAIL,
+JIRA_API_TOKEN set as Fly secrets; the env bootstrap in `backend/main.py`
+stored it on startup; verified - Jira keys in the Inventory tab render as
+links), so Coverage (#31) has what it needs.
 
 **Next: #31** (Coverage table + row selection), **#32** (detail panel),
 **#33** (project-context auto-detect via `useProductContext`), **#34**
