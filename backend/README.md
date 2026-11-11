@@ -43,6 +43,26 @@ string for anything beyond local dev — SQLAlchemy's column types here are
 portable across both, so nothing else needs to change. Postgres is still
 the named production database per `CLAUDE.md`'s tech stack.
 
+## Securing the dashboard routes for a Forge app (`REQUIRE_FORGE_AUTH`)
+
+This backend also doubles as the Remote behind an Atlassian Forge app
+(Milestone 7+) using Forge's native UI Kit, instead of being called only
+by the self-hosted `frontend/` dashboard. Forge signs every Remote
+request with a Forge Invocation Token (FIT) — a JWT, not a shared secret
+— which `backend/forge_auth.py`'s `require_forge_invocation_token`
+dependency verifies against Atlassian's published JWKS
+(`https://forge.cdn.prod.atlassian-dev.net/.well-known/jwks.json`),
+checking the token's signature plus its `iss`/`aud`/`app.id` claims.
+
+This is **off by default**, gated behind two env vars, so installing a
+Forge app elsewhere never silently breaks an existing self-hosted
+`frontend/` deployment calling these same routes unauthenticated:
+
+| Env var | Effect |
+| --- | --- |
+| `REQUIRE_FORGE_AUTH` | Set to `true` to require a valid FIT on the 10 routes the dashboard calls (`/api/jira/connection` GET/POST/DELETE, `/api/jira/requirements`, `/api/inventory`, `/api/coverage`, `/api/requirement-links` GET/POST-reviewed, `/api/coverage/gap-analysis`, `/api/webhooks/jira/events`). Unset or any other value is a no-op — those routes stay unauthenticated, same as before. |
+| `FORGE_APP_ID` | Required once `REQUIRE_FORGE_AUTH=true` (fails closed with `500` otherwise) — your Forge app's id, checked against both the token's `aud` claim and its `app.id` claim (Atlassian's own guidance: don't trust `app.id` without checking it against trusted config). |
+
 ## Running locally
 
 ```bash

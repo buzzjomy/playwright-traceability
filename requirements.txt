@@ -17,3 +17,9 @@ httpx2>=2.0  # required by FastAPI's TestClient, used in backend tests
 # Milestone 4, issue #19 - plain-language "what changed" summary on a
 # Suspect requirement link.
 anthropic>=0.40
+
+# Milestone 7, issue #25 - Forge Invocation Token verification for the
+# Forge app's Remote calls (no official Python reference implementation
+# exists; Atlassian ships Node.js/jose and Java/Spring Boot reference
+# backends only).
+pyjwt[crypto]>=2.8
