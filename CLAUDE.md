@@ -135,7 +135,7 @@ full-project fetch. Flagged here rather than built, since it's not needed
 for the current MVP/demo scope — raised during a design discussion on
 2026-09-18, not from an actual customer hitting this limit yet.
 
-## Current status (last updated 2026-11-11)
+## Current status (last updated 2026-11-11, end of session)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
 (`parser/report_parser.py`, `parser/static_parser.py` + real TypeScript
@@ -213,28 +213,81 @@ full design.
 Milestone 6 (Defect Linking, v2) is what's left in the original 6-milestone
 plan.
 
-**Milestones 7-9 (Atlassian Forge app) are a new, additive track, in
-progress** (issues #25-#39; plan approved 2026-11-11). The standalone
-`frontend/` dashboard is NOT being replaced - `forge-app/` is a second
-frontend (Forge **UI Kit**, not Custom UI) against the same FastAPI
-backend, called as a Forge **Remote**. Decisions already made: Forge over
-Connect; UI Kit over Custom UI (a full rewrite - no CSS/JSX reuse, custom
-hex colors aren't possible, so the pale-yellow row highlight etc. don't
-carry over); using a Remote forfeits "Runs on Atlassian" eligibility
-(accepted). Done so far: #25/#26 `backend/forge_auth.py` verifies Forge
-Invocation Tokens (RS256, JWKS, `iss`/`aud`/`app.id`) on the 10 dashboard
-routes, off by default behind `REQUIRE_FORGE_AUTH` + `FORGE_APP_ID` (the
-full `ari:cloud:ecosystem::app/<uuid>` from `forge-app/manifest.yml`);
-#27 backend deployed to Fly.io (`playwright-traceability.fly.dev`, region
-sin, Postgres via psycopg v3; `Dockerfile`/`fly.toml`; deploys are manual
-`fly deploy` - no auto-deploy workflow on purpose); #28 `forge-app/`
-walking skeleton installed on pwtrace.atlassian.net and verified end to
-end with a real token. `requestRemote()` runs in the browser, so the
-backend has opt-in CORS (`CORS_ALLOW_ORIGINS`/`CORS_ALLOW_ORIGIN_REGEX`);
-the origin is the customer's Jira site. Next: #29 (CI job for forge-app),
-then Milestone 8 (port InventoryView/CoverageView to UI Kit). Forge CLI
-needs Node 22/24 (use `nvm use 22`; the repo's default Node 20 is
-unsupported by it). Per-issue detail is in GitHub issues #25-#39.
+**Milestones 7-9 (Atlassian Forge app) are a new, additive track
+(issues #25-#39; plan approved 2026-11-11).** `frontend/` (the standalone
+dashboard) is NOT being replaced: `forge-app/` is a second frontend,
+Forge **UI Kit** (not Custom UI), against the same FastAPI backend called
+as a Forge **Remote**. Decided: Forge over Connect; UI Kit over Custom UI
+(full rewrite - no CSS/JSX reuse, no custom hex colors, so the pale-yellow
+row highlight etc. don't carry over); a Remote forfeits "Runs on
+Atlassian" eligibility (accepted).
+
+**Status: Milestone 7 done (#25-#29); Milestone 8 in progress - #30 done.**
+- #25/#26 `backend/forge_auth.py`: verifies Forge Invocation Tokens (RS256,
+  Atlassian JWKS, `iss`/`aud`/`app.id`) on the 10 dashboard routes, off by
+  default behind `REQUIRE_FORGE_AUTH` + `FORGE_APP_ID` (the full
+  `ari:cloud:ecosystem::app/<uuid>` from `forge-app/manifest.yml`).
+  Verified with a real token.
+- #27 backend live on Fly.io: https://playwright-traceability.fly.dev
+  (app `playwright-traceability`, region sin, Postgres `upg-ambered-dust-003`
+  via psycopg v3, scale-to-zero). Manual `fly deploy` only - the
+  auto-generated fly-deploy.yml was removed on purpose.
+- #28 `forge-app/` installed on pwtrace.atlassian.net (development
+  environment), verified end to end. `requestRemote()` runs in the BROWSER,
+  so the backend has opt-in CORS (`CORS_ALLOW_ORIGINS` /
+  `CORS_ALLOW_ORIGIN_REGEX`); the origin is the customer's own Jira site.
+- #29 CI job `forge-app-lint` (npm ci + ESLint + `npm test`, Node 22, no
+  secrets; `forge lint` needs a login so it is NOT in CI).
+- #30 `InventoryView` ported to UI Kit (`forge-app/src/frontend/
+  InventoryView.jsx`, pure logic in `lib/inventory.js` with `node --test`
+  unit tests), deployed to development as 2.2.0 and visually verified.
+
+**Current live state of the Fly deployment** (not in git): secrets set
+there are DATABASE_URL, INGEST_API_KEY (was missing once; re-generated),
+REQUIRE_FORGE_AUTH=true, FORGE_APP_ID, CORS_ALLOW_ORIGINS=
+https://pwtrace.atlassian.net. The demo project's data was pushed once
+(`scripts.push_test_inventory` with demo/google-search report + specs, run
+id 1). The Fly backend has NO Jira connection yet - set JIRA_SITE_URL,
+JIRA_EMAIL, JIRA_API_TOKEN as Fly secrets (env bootstrap in
+`backend/main.py` creates it on startup). That is required before
+Coverage (#31) works, and also makes Jira keys render as links.
+
+**Next: #31** (Coverage table + row selection), **#32** (detail panel),
+**#33** (project-context auto-detect via `useProductContext`), **#34**
+(manual E2E pass), then Milestone 9 (#35-#39: free-vs-paid decision,
+security review of FIT verification, Marketplace Partner/listing, Atlassian
+review, go-live). Plan details are in the GitHub issues. Design decisions
+already made for #31: row selection = a `Button` in the Key cell (UI Kit's
+DynamicTable has no row-click; `highlightedRowIndex` is not for selection),
+selected state shown via the button's `appearance`; detail panel = a
+conditional `Stack` below the table, link sub-table = a second
+DynamicTable; port `rollUpHealth`/`STATE_SEVERITY`/`LINK_STATE_CLASS` as
+pure functions in `forge-app/src/frontend/lib/` (Lozenge mapping:
+covered->success, suspect->moved, stale/orphaned->removed). For the
+Marketplace, switch CORS to a regex for `https://<any>.atlassian.net`,
+which is only safe with REQUIRE_FORGE_AUTH on.
+
+**Working on forge-app - hard-won gotchas:**
+- The Forge CLI needs Node 22/24: `export NVM_DIR="$HOME/.nvm" && source
+  "$NVM_DIR/nvm.sh" && nvm use 22` (repo default Node 20 is unsupported).
+  Deploy: `cd forge-app && npx @forge/cli deploy -e development
+  --non-interactive`. Minor versions apply to the existing install
+  automatically; new scopes/egress need `forge install --upgrade`. Always
+  hard-reload (Cmd+Shift+R) the Jira tab after a deploy.
+- Claude cannot do `forge login`, `fly ...` commands, or anything needing
+  the user's credentials/TTY. The user runs those in their own terminal and
+  pastes back non-secret output. NEVER ask for or accept real secrets/tokens
+  in chat (INGEST_API_KEY, Jira/Anthropic/Fly/Atlassian tokens).
+- Developer Space: `hazeltech` (id 510f3c41-5b47-4c2e-bed3-99986d4b4c4f);
+  non-interactive `forge create` needs `-s <id> -y`.
+- UI Kit rules: only components exported by `@forge/react`; check real prop
+  types in `forge-app/node_modules/@atlaskit/forge-react-types/src/components/
+  __generated__/` rather than guessing; a fragment's children lay out SIDE BY
+  SIDE (wrap in `Stack`); there is no `Table` (use `DynamicTable`); no
+  div/strong/etc. The app is plain JS/JSX (no tsc). ESLint only has the
+  react-hooks rule. No UI test harness exists - verify UI by deploying and
+  asking the user for a screenshot (Claude in Chrome was not available).
+- Keep presentation logic pure and unit-tested in `src/frontend/lib/*.js`.
 
 **Real demo data exists** for testing all of the above against a real
 Jira site, not synthetic fixtures: `demo/google-search/` — 10 real Story

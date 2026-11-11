@@ -1,26 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text } from '@forge/react';
-import { requestRemote } from '@forge/bridge';
+import ForgeReconciler, { Tab, TabList, TabPanel, Tabs, Text } from '@forge/react';
+import { InventoryView } from './InventoryView';
+import { fetchJiraConnection } from './lib/forgeApi';
 
-// Walking skeleton (issue #28): proves the whole chain - this UI Kit panel
-// -> Forge Remote -> FastAPI backend on Fly.io -> response -> render - works
-// end to end before the real Inventory/Coverage views are ported (Milestone 8).
+// Mirrors frontend/src/App.tsx: two views behind tabs, and a best-effort
+// lookup of the connected Jira site so Jira keys can render as real links.
+// The Coverage tab is filled in by issues #31/#32.
 const App = () => {
-  const [result, setResult] = useState('Loading...');
+  const [siteUrl, setSiteUrl] = useState(null);
 
   useEffect(() => {
-    requestRemote('traceability-backend', {
-      path: '/api/jira/connection',
-      method: 'GET',
-    })
-      .then(async (response) => {
-        const body = await response.text();
-        setResult(`HTTP ${response.status}: ${body}`);
-      })
-      .catch((error) => setResult(`Error: ${error}`));
+    fetchJiraConnection()
+      .then((status) => setSiteUrl(status.connected ? status.site_url : null))
+      .catch(() => setSiteUrl(null));
   }, []);
 
-  return <Text>{result}</Text>;
+  return (
+    <Tabs id="traceability-tabs">
+      <TabList>
+        <Tab>Test Inventory</Tab>
+        <Tab>Requirement Coverage</Tab>
+      </TabList>
+      <TabPanel>
+        <InventoryView siteUrl={siteUrl} />
+      </TabPanel>
+      <TabPanel>
+        <Text>Requirement Coverage is coming in the next step (issues #31/#32).</Text>
+      </TabPanel>
+    </Tabs>
+  );
 };
 
 ForgeReconciler.render(

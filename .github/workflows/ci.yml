@@ -67,3 +67,7 @@ jobs:
       - name: Lint
         run: npm run lint
         working-directory: forge-app
+
+      - name: Unit tests
+        run: npm test
+        working-directory: forge-app
