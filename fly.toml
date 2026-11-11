@@ -1,0 +1,24 @@
+# fly.toml app configuration file generated for playwright-traceability on 2026-11-11T19:13:27+05:30
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+
+app = 'playwright-traceability'
+primary_region = 'sin'
+
+[build]
+[env]
+  PORT = '8080'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

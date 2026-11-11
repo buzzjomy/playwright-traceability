@@ -11,6 +11,10 @@ uvicorn[standard]>=0.29
 sqlalchemy>=2.0
 requests>=2.31
 
+# Milestone 7, issue #27 - Postgres driver for the Fly.io deployment
+# (backend/db.py normalizes DATABASE_URL to use this driver explicitly).
+psycopg[binary]>=3.1
+
 pytest>=8.0
 httpx2>=2.0  # required by FastAPI's TestClient, used in backend tests
 
