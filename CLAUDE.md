@@ -267,20 +267,36 @@ JIRA_API_TOKEN set as Fly secrets; the env bootstrap in `backend/main.py`
 stored it on startup; verified - Jira keys in the Inventory tab render as
 links), so Coverage (#31) has what it needs.
 
+**Multi-tenancy is live (PR #48, deployed 2026-11-12).** Every table has a
+`tenant_id`; the tenant is the verified Forge token's `app.installationId`
+(`backend/tenancy.py`). The owner's install (`pwtrace`) is mapped to the
+`local` tenant - where the env-bootstrapped Jira connection and the demo
+data live - by the Fly secret `LOCAL_TENANT_INSTALLATION_ID` (its value is
+shown in the app's Settings tab; it is an identifier, not a secret). Any
+other installation is a fresh, empty tenant with no Jira connection.
+Schema changes go through Alembic (`backend/migrations/`, run at startup;
+the migrations are tested on a real Postgres in CI). CI uploads use
+per-tenant keys generated in the Settings tab (hashed, shown once); the old
+global `INGEST_API_KEY` still works and maps to the `local` tenant. The
+classic Jira webhook only serves the `local` tenant.
+
 **Product review (2026-11-12) re-ordered the plan.** Two new milestones:
-- **Multi-Tenancy (#40-#43) - blocks Marketplace #37/#38.** The backend is
-  single-tenant: one `JiraConnection` from env vars, no tenant column on
-  any table, one global `INGEST_API_KEY`. Needs per-installation data
-  isolation (#40), Jira calls via Forge's app system token instead of a
-  personal API token (#41), per-installation ingest keys (#42), and the
-  cold-start fix (#43: `min_machines_running = 1` in `fly.toml` - done and
-  deployed 2026-11-12; Postgres: the idle shutdown is the machine env var
-  `FLY_SCALE_TO_ZERO=1h` on `upg-ambered-dust-003` (unmanaged Fly Postgres,
-  no longer maintained by Fly). Removing it needs `fly deploy`, which the $1
-  trial blocks (needs a credit card), so it was raised to `8760h` via
-  `fly machine update -e` as an unverified stopgap. Real fix: add a card,
-  remove the var, and plan a move to Fly Managed Postgres before customers; Forge gives a panel call ~25s with no retry, and first
-  loads after idle took ~18s twice on 2026-11-11).
+- **Multi-Tenancy (#40-#43) - blocks Marketplace #37/#38.** #40
+  (per-installation data isolation) and #42 (per-tenant ingest keys +
+  Settings tab) are DONE. **#41 is the remaining blocker**: Jira calls
+  still use a stored email + API token, so a customer install has no way to
+  connect Jira (Coverage returns "No Jira connection"). It needs Forge's app
+  token instead, plus a plan for background work (polling/drift) that runs
+  outside a user request. #43 (cold starts): `min_machines_running = 1` in
+  `fly.toml` is deployed. The Postgres half is an unverified stopgap: the
+  idle shutdown is the machine env var `FLY_SCALE_TO_ZERO` on
+  `upg-ambered-dust-003` (unmanaged Fly Postgres, no longer maintained by
+  Fly). Removing it needs `fly deploy`, which the $1 trial blocks (credit
+  card), so it was raised from `1h` to `8760h` via `fly machine update -e`.
+  Still to verify after >1h idle that the DB isn't Suspended. Real fix: add
+  a card, remove the var, and move to Fly Managed Postgres before customers.
+  Forge gives a panel call ~25s with no retry; first loads after idle took
+  ~18s twice on 2026-11-11.
 - **Adoption (#44-#47):** a Playwright reporter npm package that uploads
   from CI instead of the hand-run Python script (#44); a Jira issue panel
   showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
@@ -292,7 +308,7 @@ links), so Coverage (#31) has what it needs.
   Strongest fit is regulated teams (medical, fintech, automotive) where
   traceability is mandatory.
 
-**Next:** Multi-Tenancy (#40-#43) and #47, then the rest of
+**Next:** #41 (Jira via Forge's app token) and #47, then the rest of
 Adoption and Milestone 9 (#35-#39). For the Marketplace, switch CORS to a
 regex for `https://<any>.atlassian.net`, which is only safe with
 REQUIRE_FORGE_AUTH on.
