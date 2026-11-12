@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.db import Base, get_db
+from backend.db import Base, get_db, get_session_factory
 from backend.main import app
 
 
@@ -36,6 +36,8 @@ def client(tmp_path):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    # Background work opens its own sessions; point them at this test's database.
+    app.dependency_overrides[get_session_factory] = lambda: testing_session
     # The lifespan would migrate the real dev database; this test DB already
     # has its schema from create_all above.
     with patch("backend.main.SessionLocal", testing_session), patch("backend.main.init_db"):
