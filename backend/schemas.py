@@ -83,6 +83,20 @@ class IngestRunRequest(BaseModel):
     features: list[SourceTestRecordIn] | None = None
 
 
+class PlaywrightIngestRequest(BaseModel):
+    """Request body from the Playwright reporter package (issue #44).
+
+    Unlike IngestRunRequest, which takes already-parsed records, this carries
+    the *raw* material - a report in Playwright's JSON-reporter shape and the
+    raw facts of a static spec scan - and the backend interprets both with
+    the same parsers the Python CLI uses, so the rules live in one place.
+    Each is optional with the same None-means-untouched meaning as there.
+    """
+
+    report: dict | None = None
+    static_facts: list[dict] | None = None
+
+
 class IngestRunResponse(BaseModel):
     """Response body summarizing what an ingest push actually did."""
 

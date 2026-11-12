@@ -88,3 +88,22 @@ jobs:
       - name: Unit tests
         run: npm test
         working-directory: forge-app
+
+  reporter-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install reporter dependencies
+        run: npm ci
+        working-directory: reporter
+
+      # Includes an end-to-end test that runs real Playwright (no browser
+      # needed - none of the fixture tests use `page`) against a fake backend.
+      - name: Unit and end-to-end tests
+        run: npm test
+        working-directory: reporter
