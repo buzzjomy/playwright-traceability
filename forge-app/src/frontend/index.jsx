@@ -1,20 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Tab, TabList, TabPanel, Tabs } from '@forge/react';
+import React from 'react';
+import ForgeReconciler, { Tab, TabList, TabPanel, Tabs, useProductContext } from '@forge/react';
 import { CoverageView } from './CoverageView';
 import { InventoryView } from './InventoryView';
 import { SettingsView } from './SettingsView';
-import { fetchJiraConnection } from './lib/forgeApi';
 
-// Mirrors frontend/src/App.tsx: two views behind tabs, and a best-effort
-// lookup of the connected Jira site so Jira keys can render as real links.
+// Mirrors frontend/src/App.tsx: views behind tabs. The Jira site URL (to render
+// keys as real links) comes straight from Forge's own context - no backend call.
 const App = () => {
-  const [siteUrl, setSiteUrl] = useState(null);
-
-  useEffect(() => {
-    fetchJiraConnection()
-      .then((status) => setSiteUrl(status.connected ? status.site_url : null))
-      .catch(() => setSiteUrl(null));
-  }, []);
+  const context = useProductContext();
+  const siteUrl = context?.siteUrl ?? null;
 
   return (
     <Tabs id="traceability-tabs">

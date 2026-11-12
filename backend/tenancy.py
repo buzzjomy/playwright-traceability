@@ -20,6 +20,7 @@ import hashlib
 import hmac
 import os
 import secrets
+from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -61,33 +62,72 @@ def get_local_tenant(db: Session) -> Tenant:
     return get_or_create_tenant(db, LOCAL_TENANT_KEY)
 
 
-def current_tenant(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> Tenant:
-    """FastAPI dependency: the tenant making this dashboard (Forge) request.
+# Forge hands the app system token to the backend only for calls made with
+# invokeRemote (or a trigger) through a manifest `endpoint` with
+# auth.appSystemToken enabled - see backend/jira_access.py.
+JIRA_API_BASE_URL_PREFIX = "https://api.atlassian.com/ex/jira/"
 
-    With REQUIRE_FORGE_AUTH off this is the LOCAL tenant. With it on, the
+
+@dataclass
+class RequestContext:
+    """Everything a dashboard (Forge) request tells us about its caller.
+
+    `jira_api_base_url` and `system_token` are only set when Forge auth is
+    on, the Invocation Token verified, and the call carried a system token.
+    """
+
+    tenant: Tenant
+    jira_api_base_url: str | None = None
+    system_token: str | None = None
+
+
+def request_context(
+    authorization: str | None = Header(default=None),
+    x_forge_oauth_system: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> RequestContext:
+    """FastAPI dependency: who is calling, and the Jira access Forge granted.
+
+    With REQUIRE_FORGE_AUTH off (local dev, the standalone frontend/) this
+    is the LOCAL tenant and any Forge headers are ignored - without a
+    verified token there is nothing to trust them against. With it on, the
     token is verified and its installation id picks the tenant; a token
     without one is rejected rather than defaulted - falling back to a
     shared tenant would be exactly the cross-customer leak this prevents.
 
+    The Jira base URL comes only from the verified token's claims and must
+    be Atlassian's own gateway; the system token header is only honoured
+    alongside it.
+
     LOCAL_TENANT_INSTALLATION_ID is an explicit opt-in for the deployment
     OWNER's own installation: that one installation is served the LOCAL
     tenant (where the env-bootstrapped Jira connection and any data pushed
-    with the legacy global key live). It exists only until issues #41/#42
-    give every installation its own Jira access and ingest key.
+    with the legacy global key live). It exists only until every
+    installation has its own ingest key (issue #42).
     """
     if not forge_auth_enabled():
-        return get_local_tenant(db)
+        return RequestContext(tenant=get_local_tenant(db))
 
     claims = verify_forge_invocation_token(authorization)
-    installation_id = (claims.get("app") or {}).get("installationId")
+    app_claims = claims.get("app") or {}
+    installation_id = app_claims.get("installationId")
     if not installation_id:
         raise HTTPException(status_code=401, detail="Forge Invocation Token has no installation id")
 
     if installation_id == os.environ.get("LOCAL_TENANT_INSTALLATION_ID"):
-        return get_local_tenant(db)
+        tenant = get_local_tenant(db)
+    else:
+        tenant = get_or_create_tenant(db, installation_id, (claims.get("context") or {}).get("cloudId"))
 
-    cloud_id = (claims.get("context") or {}).get("cloudId")
-    return get_or_create_tenant(db, installation_id, cloud_id)
+    api_base_url = app_claims.get("apiBaseUrl")
+    if x_forge_oauth_system and isinstance(api_base_url, str) and api_base_url.startswith(JIRA_API_BASE_URL_PREFIX):
+        return RequestContext(tenant=tenant, jira_api_base_url=api_base_url, system_token=x_forge_oauth_system)
+    return RequestContext(tenant=tenant)
+
+
+def current_tenant(context: RequestContext = Depends(request_context)) -> Tenant:
+    """FastAPI dependency: the tenant making this dashboard (Forge) request."""
+    return context.tenant
 
 
 def ingest_tenant(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> Tenant:

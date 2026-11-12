@@ -1,32 +1,33 @@
-import { requestRemote } from '@forge/bridge';
-
-// Must match the `remotes[].key` in manifest.yml.
-const REMOTE_KEY = 'traceability-backend';
+import { invokeRemote } from '@forge/bridge';
 
 /**
- * Call the FastAPI backend through the Forge Remote and return its parsed
- * JSON. Forge attaches the Forge Invocation Token the backend verifies
- * (backend/forge_auth.py). Errors carry FastAPI's {"detail": "..."} message
- * when present, same as frontend/src/api.ts, since it's usually more useful
- * than a bare status code (e.g. "No Jira connection configured yet").
+ * Call the FastAPI backend through the manifest's `endpoint` module and
+ * return its parsed JSON.
+ *
+ * invokeRemote (not requestRemote) on purpose: Forge proxies the call and
+ * attaches the app system token the backend uses to read Jira as the app
+ * (issue #41); requestRemote goes browser -> backend directly and carries no
+ * tokens. Errors carry FastAPI's {"detail": "..."} message when present,
+ * same as frontend/src/api.ts, since it's usually more useful than a bare
+ * status code (e.g. "No Jira connection configured yet").
  */
 async function callBackend(path, method) {
-  const response = await requestRemote(REMOTE_KEY, { path, method });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.detail ?? `${path} returned ${response.status}`);
+  let response;
+  try {
+    response = await invokeRemote({ path, method });
+  } catch (err) {
+    // The bridge may reject on a non-2xx; keep the backend's own message.
+    throw new Error(err?.body?.detail ?? err?.message ?? `${path} failed`);
   }
-  return response.json();
+  if (response.status >= 400) {
+    throw new Error(response.body?.detail ?? `${path} returned ${response.status}`);
+  }
+  return response.body;
 }
 
 /** GET /api/inventory - the reconciled test inventory: {entries: InventoryEntry[]}. */
 export function fetchInventory() {
   return callBackend('/api/inventory', 'GET');
-}
-
-/** GET /api/jira/connection - connection status; used only to link Jira keys. */
-export function fetchJiraConnection() {
-  return callBackend('/api/jira/connection', 'GET');
 }
 
 /** GET /api/coverage - every requirement in a Jira project with its linked-test count. */
