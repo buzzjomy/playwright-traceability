@@ -62,11 +62,15 @@ requirement's actual content. The planned differentiator is:
   `frontend/`. Deliberately minimal so far: no router (tabs via local
   component state), no state management library, no CSS/component
   framework.
-- Jira auth is **API token + email over HTTP Basic Auth**, not OAuth
-  2.0 — OAuth was deferred (needs a registered app + public redirect
-  URI, real overhead before there's even a backend deployed anywhere).
-  See `backend/README.md` for the full reasoning; revisit if this ever
-  needs to become a real multi-tenant "Connect your Jira" product.
+- Jira auth has two modes (`backend/jira_client.py`, chosen per request by
+  `backend/jira_access.py`): **API token + email over HTTP Basic Auth** for
+  local dev, the standalone `frontend/` and the owner's own tenant (OAuth 2.0
+  was deferred - see `backend/README.md`), and the **Forge app system token**
+  for every Marketplace customer (issue #41) - the app reads Jira as its own
+  bot user, so a customer never hands over credentials.
+- `reporter/` is a Node package (a Playwright reporter, issue #44), alongside
+  the Python backend/parsers, the React `frontend/` and the Forge UI Kit
+  `forge-app/`.
 - Chosen to match the stack already used on the bakery app project, so
   there's no new stack to learn mid-build.
 
@@ -135,7 +139,7 @@ full-project fetch. Flagged here rather than built, since it's not needed
 for the current MVP/demo scope — raised during a design discussion on
 2026-09-18, not from an actual customer hitting this limit yet.
 
-## Current status (last updated 2026-11-11, end of session)
+## Current status (last updated 2026-11-12, end of session)
 
 **Milestone 1 (Test Inventory): fully done, issues #1-#5.** Three parsers
 (`parser/report_parser.py`, `parser/static_parser.py` + real TypeScript
@@ -308,20 +312,45 @@ classic Jira webhook only serves the `local` tenant.
   with no retry; first loads after idle took ~18s twice on 2026-11-11.
   **#50**: Analyze gaps took 20s+ on a tiny ticket - near that limit; needs
   start-and-poll before real use.
-- **Adoption (#44-#47):** a Playwright reporter npm package that uploads
-  from CI instead of the hand-run Python script (#44); a Jira issue panel
+- **Adoption (#44-#47):** #44 DONE (below). Still open: a Jira issue panel
   showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
   suggested test-to-requirement links, human-accepted, never auto-linked
-  (#46); and talking to 3-5 QA leads before Marketplace work (#47).
+  (#46); and talking to 3-5 QA leads before Marketplace work (#47 - the
+  interview guide and a 5-minute demo script are written, see
+  `docs/customer-interview-guide.md` and `docs/demo-script.md`; the
+  conversations themselves are the owner's to do).
+- **#44 Playwright reporter (PR #52, merged 2026-11-12):** `reporter/` is a
+  reporter you add to `playwright.config.ts` (`TRACEABILITY_INGEST_KEY` from
+  the env, never the config). After a run it sends the results (built from
+  Playwright's Suite API in the JSON-reporter shape) plus the raw facts of a
+  `*.spec.ts` scan to `POST /api/ingest/playwright`, and the backend
+  interprets both with the SAME Python parsers as the CLI
+  (`parser.static_parser.records_from_raw`), so the rules live in one place.
+  It never changes the run's exit code. `reporter/src/parse_specs.js` is a
+  copy of `static_parser/parse_specs.js`; a test keeps them identical.
+  Tests: 24 Node (incl. real Playwright vs a fake backend), 9 endpoint, 7
+  cross-language checks against the committed real
+  `reporter/test/sample-payload.json` (regenerate: `UPDATE_FIXTURE=1 npm
+  test` in `reporter/`); CI job `reporter-tests`. **Open:** the package is
+  `"private": true` - the npm name/scope is the owner's call and publishing is
+  theirs; the backend needs a `fly deploy` for the endpoint (the Dockerfile
+  now copies `parser/`); it has NOT been run against the live backend (needs
+  a real ingest key from the Settings tab); the Settings tab still shows the
+  Python CLI snippet and should switch to the reporter once it is published;
+  `.feature` files and the Jira mapping file still go through the Python CLI.
 - Positioning: Xray/Zephyr/AIO already import Playwright results into
   Jira. The pitch is "they make you maintain test cases in Jira; we read
   your actual tests and tell you when they no longer match the ticket."
   Strongest fit is regulated teams (medical, fintech, automotive) where
   traceability is mandatory.
 
-**Next:** #47 (talk to 3-5 QA leads before Marketplace work), then the
-rest of Adoption (#44-#46) and Milestone 9 (#35-#39); plus #50 and the
-Postgres move from #43. CORS is no longer needed for the Forge app now that
+**Next:** #47 (talk to 3-5 QA leads before more Marketplace work - the
+owner's to do; the guide is ready), then #45/#46 (shape depends on what the
+interviews say: they may favour the issue panel), Milestone 9 (#35-#39), #50
+and the Postgres move from #43. Also still open from this session: verify the
+hourly scheduled poll fires, and run the reporter against the live backend.
+
+CORS is no longer needed for the Forge app now that
 it uses `invokeRemote` (Forge proxies the call), so the earlier plan to
 widen it to `https://<any>.atlassian.net` can be dropped - keep
 `CORS_ALLOW_ORIGINS` only if the standalone frontend ever needs it.
