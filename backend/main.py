@@ -148,6 +148,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Playwright Traceability Backend", lifespan=lifespan)
 
+from backend.spike import router as _spike_router  # SPIKE (issue #41) - remove with backend/spike.py
+
+app.include_router(_spike_router)
+
 
 def cors_settings_from_env() -> dict | None:
     """Build CORSMiddleware kwargs from env vars, or None if CORS is off.

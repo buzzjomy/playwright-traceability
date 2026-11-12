@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button, CodeBlock, Heading, SectionMessage, Spinner, Stack, Text, Textfield } from '@forge/react';
-import { createIngestKey, fetchTenant } from './lib/forgeApi';
+import { createIngestKey, fetchTenant, spikeSystemToken } from './lib/forgeApi';
 import { uploadCommand } from './lib/ciSnippet';
 
 // Where an installation connects its CI (issue #42): it shows this
@@ -13,6 +13,9 @@ export const SettingsView = () => {
   const [error, setError] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [newKey, setNewKey] = useState(null);
+  // SPIKE (issue #41) - throwaway state for the system-token probe.
+  const [spike, setSpike] = useState(null);
+  const [spiking, setSpiking] = useState(false);
 
   useEffect(() => {
     fetchTenant()
@@ -30,6 +33,15 @@ export const SettingsView = () => {
       })
       .catch((err) => setError(err.message))
       .finally(() => setGenerating(false));
+  };
+
+  const runSpike = () => {
+    setSpiking(true);
+    setSpike(null);
+    spikeSystemToken()
+      .then((result) => setSpike(JSON.stringify(result, null, 2)))
+      .catch((err) => setSpike(`invokeRemote failed: ${err.message ?? JSON.stringify(err)}`))
+      .finally(() => setSpiking(false));
   };
 
   if (tenant === null && !error) return <Spinner size="medium" />;
@@ -55,6 +67,13 @@ export const SettingsView = () => {
           </Button>
         </Stack>
       )}
+      <Stack space="space.100">
+        <Heading size="small">SPIKE (issue #41): app system token probe</Heading>
+        <Button isDisabled={spiking} onClick={runSpike}>
+          {spiking ? 'Probing…' : 'Run system-token probe'}
+        </Button>
+        {spike && <CodeBlock language="json" text={spike} />}
+      </Stack>
       {newKey && (
         <SectionMessage appearance="warning" title="Copy this key now - it won't be shown again">
           <Stack space="space.100">

@@ -4,6 +4,16 @@ modules:
       resource: main
       render: native
       title: Traceability
+      # SPIKE (issue #41): invokeRemote calls go through this endpoint, which is
+      # what makes Forge attach the app system token to the request.
+      resolver:
+        endpoint: traceability-endpoint
+  endpoint:
+    - key: traceability-endpoint
+      remote: traceability-backend
+      auth:
+        appSystemToken:
+          enabled: true
 resources:
   - key: main
     path: src/frontend/index.jsx
@@ -16,7 +26,10 @@ remotes:
     operations:
       - fetch
 permissions:
-  scopes: []
+  # SPIKE (issue #41): the system token only carries the Jira permissions listed here.
+  scopes:
+    - read:app-system-token
+    - read:jira-work
   external:
     fetch:
       backend:

@@ -1,4 +1,4 @@
-import { requestRemote } from '@forge/bridge';
+import { invokeRemote, requestRemote } from '@forge/bridge';
 
 // Must match the `remotes[].key` in manifest.yml.
 const REMOTE_KEY = 'traceability-backend';
@@ -58,4 +58,15 @@ export function fetchTenant() {
 /** POST /api/tenant/ingest-key - generate (or replace) the CI ingest key; the key comes back once. */
 export function createIngestKey() {
   return callBackend('/api/tenant/ingest-key', 'POST');
+}
+
+/**
+ * SPIKE (issue #41) - throwaway. Unlike requestRemote (browser -> backend,
+ * no OAuth tokens), invokeRemote is proxied by Forge through the manifest's
+ * `endpoint` module, which is what attaches the app system token. Returns
+ * {status, body} as the backend's probe reported it.
+ */
+export async function spikeSystemToken() {
+  const response = await invokeRemote({ path: '/api/spike/system-token', method: 'GET' });
+  return { status: response.status, body: response.body };
 }
