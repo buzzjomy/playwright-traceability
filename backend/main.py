@@ -30,7 +30,7 @@ from backend.db import SessionLocal, get_db, init_db
 from backend.drift_detection import detect_drift_for_issue
 from backend.jira_access import require_jira_client
 from backend.jira_client import JiraAuthError, JiraClient
-from backend.jira_polling import poll_for_changes
+from backend.forge_triggers import poll_project, router as forge_triggers_router
 from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirement, pull_requirements
 from backend.models import (
     JiraConnection,
@@ -148,6 +148,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Playwright Traceability Backend", lifespan=lifespan)
+app.include_router(forge_triggers_router)
 
 
 def cors_settings_from_env() -> dict | None:
@@ -422,47 +423,18 @@ def poll_jira_for_changes(
     """
     connection = _require_connection(db, tenant)
 
-    poll_state = (
-        db.query(JiraPollState)
-        .filter(JiraPollState.tenant_id == tenant.id, JiraPollState.project_key == project_key)
-        .first()
-    )
-    since = poll_state.last_polled_at if poll_state else None
-    # Captured before the search runs, not after, so a change that lands
-    # mid-poll is caught on the *next* poll rather than silently skipped.
-    poll_started_at = utcnow()
-
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     try:
-        changed_issues = poll_for_changes(client, project_key, since, poll_started_at)
+        is_first_poll, changed_count, polled_at = poll_project(db, tenant.id, client, project_key)
     except JiraAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    for issue in changed_issues:
-        db.add(
-            JiraWebhookEvent(
-                tenant_id=tenant.id,
-                issue_key=issue.get("key", ""),
-                webhook_event="jira:issue_polled",
-                changelog=None,
-                raw_payload=issue,
-            )
-        )
-        if issue.get("key"):
-            detect_drift_for_issue(db, tenant.id, client, issue["key"])
-
-    if poll_state is None:
-        poll_state = JiraPollState(tenant_id=tenant.id, project_key=project_key, last_polled_at=poll_started_at)
-        db.add(poll_state)
-    else:
-        poll_state.last_polled_at = poll_started_at
     db.commit()
 
     return JiraPollResponse(
         project_key=project_key,
-        is_first_poll=since is None,
-        changed_issue_count=len(changed_issues),
-        polled_at=poll_started_at,
+        is_first_poll=is_first_poll,
+        changed_issue_count=changed_count,
+        polled_at=polled_at,
     )
 
 

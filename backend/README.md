@@ -580,6 +580,38 @@ Jira-backed call is a `400`, not a fall-back to someone else's credentials.
 Asking for another tenant's requirement link returns `404`, not `403`, so
 its existence isn't confirmed.
 
+## Jira access and change detection for Forge customers (issue #41)
+
+A Marketplace customer never hands over an email or API token. The Forge
+app calls this backend with `invokeRemote` through a manifest `endpoint`
+that has `auth.appSystemToken` enabled, so each request carries
+`x-forge-oauth-system` - a ~4-hour token for the app's own bot user - and
+the verified Invocation Token's `app.apiBaseUrl`
+(`https://api.atlassian.com/ex/jira/<cloudId>`). `backend/jira_access.py`
+picks the Jira client per request: that token if present, else the tenant's
+own stored email + API token (local dev, the standalone `frontend/`, the
+owner's tenant), else `400`. The base URL must be Atlassian's gateway and
+the header is ignored unless the Invocation Token verified. **No token is
+ever stored** - every call, trigger and event delivers a fresh one.
+
+`requestRemote` (browser straight to this backend) carries no tokens, which
+is why the dashboard uses `invokeRemote`.
+
+Drift detection needs no webhook or polling script either
+(`backend/forge_triggers.py`):
+
+- `POST /api/forge/events/issue-updated` receives `avi:jira:updated:issue`:
+  drift detection for that one issue within seconds of an edit. Forge allows
+  an event delivery only **5 seconds** and retries any non-2xx up to 4
+  times, so it records a minimal audit row (the issue key only) and does the
+  work in a background task, always answering 2xx once the token verified.
+- `POST /api/forge/scheduled/poll` is an hourly safety net: it polls every
+  project the tenant has links in. Keep the interval under 2 hours - that is
+  how long a delivered token is guaranteed valid.
+
+`POST /api/jira/poll` (a CI-triggered poll with an ingest key, Basic auth)
+remains for the standalone setup.
+
 ## Database migrations
 
 Schema changes go through Alembic (`backend/migrations/`); the app runs

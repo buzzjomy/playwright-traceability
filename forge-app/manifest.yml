@@ -8,9 +8,37 @@ modules:
       # makes Forge attach the app system token the backend reads Jira with.
       resolver:
         endpoint: traceability-endpoint
+  # Keep Suspect links current with no webhook or polling script to set up
+  # (issue #41). Both call the backend directly, each with a fresh app system
+  # token, so the backend stores no tokens.
+  trigger:
+    - key: issue-updated-trigger
+      endpoint: issue-updated-endpoint
+      events:
+        - avi:jira:updated:issue
+  scheduledTrigger:
+    # A safety net for missed events. Must stay under 2 hours: that is how long
+    # a delivered system token is guaranteed to be valid.
+    - key: scheduled-poll-trigger
+      endpoint: scheduled-poll-endpoint
+      interval: hour
   endpoint:
     - key: traceability-endpoint
       remote: traceability-backend
+      auth:
+        appSystemToken:
+          enabled: true
+    - key: issue-updated-endpoint
+      remote: traceability-backend
+      route:
+        path: /api/forge/events/issue-updated
+      auth:
+        appSystemToken:
+          enabled: true
+    - key: scheduled-poll-endpoint
+      remote: traceability-backend
+      route:
+        path: /api/forge/scheduled/poll
       auth:
         appSystemToken:
           enabled: true

@@ -85,3 +85,13 @@ def migrate(target_engine=None) -> None:
 def init_db() -> None:
     """Migrate the database to the latest schema. Called once at app startup."""
     migrate()
+
+
+def get_session_factory() -> sessionmaker:
+    """FastAPI dependency: the factory for opening a session of one's own.
+
+    Work that runs after the response has been sent (background tasks) can't
+    use the request's session, which is closed by then. It takes this
+    instead, so tests can point it at their own database.
+    """
+    return SessionLocal
