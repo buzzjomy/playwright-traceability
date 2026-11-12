@@ -222,7 +222,7 @@ as a Forge **Remote**. Decided: Forge over Connect; UI Kit over Custom UI
 row highlight etc. don't carry over); a Remote forfeits "Runs on
 Atlassian" eligibility (accepted).
 
-**Status: Milestone 7 done (#25-#29); Milestone 8 in progress - #30-#32 done.**
+**Status: Milestones 7 and 8 done (#25-#34); Milestone 9 (Marketplace) is blocked on the Multi-Tenancy milestone.**
 - #25/#26 `backend/forge_auth.py`: verifies Forge Invocation Tokens (RS256,
   Atlassian JWKS, `iss`/`aud`/`app.id`) on the 10 dashboard routes, off by
   default behind `REQUIRE_FORGE_AUTH` + `FORGE_APP_ID` (the full
@@ -246,8 +246,16 @@ Atlassian" eligibility (accepted).
   Analyze gaps / Show links / Close, link sub-table with Mark reviewed),
   pure logic in `lib/health.js`. Deployed as 2.4.0 and verified in Chrome
   against KAN (13 requirements; KAN-4 gap analysis returned 3 covered
-  criteria). Not yet exercised: Mark reviewed (needs a Suspect link) and
-  an orphaned-row panel.
+  criteria).
+- #33 `CoverageView` auto-detects the Jira project via `useProductContext`
+  (`lib/projectContext.js`, `extension.project.key`); the Textfield is a
+  manual override. Deployed as 2.5.0, verified in SAM1.
+- #34 manual E2E pass done on the live site, including the full suspect
+  flow: a Jira edit, then `POST /api/jira/poll` (needs INGEST_API_KEY as
+  `Authorization: Bearer`; the FIRST poll only sets the baseline, so a
+  change must come after it), then Suspect with an AI change summary, then
+  "Mark reviewed", then Covered. Not exercised: the orphaned-row panel
+  (logic is unit-tested; verify if orphaned data shows up).
 
 **Current live state of the Fly deployment** (not in git): secrets set
 there are DATABASE_URL, INGEST_API_KEY (was missing once; re-generated), the three JIRA_* ones,
@@ -279,8 +287,7 @@ links), so Coverage (#31) has what it needs.
   Strongest fit is regulated teams (medical, fintech, automotive) where
   traceability is mandatory.
 
-**Next:** #33 (project-context auto-detect via `useProductContext`), #34
-(manual E2E pass), then Multi-Tenancy (#40-#43) and #47, then the rest of
+**Next:** Multi-Tenancy (#40-#43) and #47, then the rest of
 Adoption and Milestone 9 (#35-#39). For the Marketplace, switch CORS to a
 regex for `https://<any>.atlassian.net`, which is only safe with
 REQUIRE_FORGE_AUTH on.
