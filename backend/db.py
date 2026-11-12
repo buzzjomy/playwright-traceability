@@ -51,6 +51,37 @@ def get_db() -> Iterator[Session]:
         db.close()
 
 
+def alembic_config(target_engine=None):
+    """An Alembic Config pointed at backend/migrations (and optionally at a
+    specific engine - the migration tests pass their own)."""
+    from alembic.config import Config
+
+    config = Config()
+    config.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "migrations"))
+    if target_engine is not None:
+        config.attributes["engine"] = target_engine
+    return config
+
+
+def migrate(target_engine=None) -> None:
+    """Bring a database up to the latest schema with Alembic.
+
+    A database created before migrations existed (by the old
+    `create_all`) already has the baseline schema but no alembic_version
+    table - it's stamped at the baseline revision first, so only the newer
+    migrations run against it instead of trying to re-create its tables.
+    """
+    from alembic import command
+    from sqlalchemy import inspect
+
+    target = target_engine or engine
+    config = alembic_config(target)
+    tables = set(inspect(target).get_table_names())
+    if "alembic_version" not in tables and "test_runs" in tables:
+        command.stamp(config, "0001")
+    command.upgrade(config, "head")
+
+
 def init_db() -> None:
-    """Create all tables that don't exist yet. Called once at app startup."""
-    Base.metadata.create_all(bind=engine)
+    """Migrate the database to the latest schema. Called once at app startup."""
+    migrate()

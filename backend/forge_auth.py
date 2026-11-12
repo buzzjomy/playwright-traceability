@@ -32,18 +32,18 @@ EXPECTED_ISSUER = "forge/invocation-token"
 _jwk_client = PyJWKClient(FORGE_JWKS_URL, cache_keys=True)
 
 
-def require_forge_invocation_token(authorization: str | None = Header(default=None)) -> None:
-    """FastAPI dependency: require a valid Forge Invocation Token.
+def forge_auth_enabled() -> bool:
+    """Whether REQUIRE_FORGE_AUTH is on for this deployment."""
+    return os.environ.get("REQUIRE_FORGE_AUTH", "false").lower() == "true"
 
-    A no-op if REQUIRE_FORGE_AUTH isn't set to "true" - this feature is
-    off by default so it never affects a deployment that isn't actually
-    fronted by a Forge app. Once enabled, fails closed (500) if
-    FORGE_APP_ID isn't configured, same posture as auth.py's two
-    dependencies.
+
+def verify_forge_invocation_token(authorization: str | None) -> dict:
+    """Verify a Forge Invocation Token and return its claims.
+
+    Raises HTTPException: 500 if FORGE_APP_ID isn't configured (fails
+    closed, same posture as auth.py's dependencies), 401 for a missing,
+    malformed, badly signed, wrong-audience or wrong-app token.
     """
-    if os.environ.get("REQUIRE_FORGE_AUTH", "false").lower() != "true":
-        return
-
     expected_app_id = os.environ.get("FORGE_APP_ID")
     if not expected_app_id:
         raise HTTPException(status_code=500, detail="REQUIRE_FORGE_AUTH is true but FORGE_APP_ID is not configured")
@@ -69,3 +69,18 @@ def require_forge_invocation_token(authorization: str | None = Header(default=No
     # having matched above.
     if claims.get("app", {}).get("id") != expected_app_id:
         raise HTTPException(status_code=401, detail="Forge Invocation Token app id mismatch")
+    return claims
+
+
+def require_forge_invocation_token(authorization: str | None = Header(default=None)) -> None:
+    """FastAPI dependency: require a valid Forge Invocation Token.
+
+    A no-op if REQUIRE_FORGE_AUTH isn't set to "true" - this feature is
+    off by default so it never affects a deployment that isn't actually
+    fronted by a Forge app. Once enabled, see verify_forge_invocation_token.
+    Routes that need to know *which* installation is calling use
+    tenancy.current_tenant instead, which builds on the same verification.
+    """
+    if not forge_auth_enabled():
+        return
+    verify_forge_invocation_token(authorization)

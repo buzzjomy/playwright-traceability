@@ -1,6 +1,5 @@
-"""Shared API-key auth for endpoints meant to be called externally (e.g.
-from a GitHub Action, or Jira itself), unlike the local-only Jira setup
-endpoints.
+"""Shared-secret auth for the one endpoint Jira itself calls (the classic
+webhook). CI upload keys are per-tenant and live in tenancy.py.
 """
 
 from __future__ import annotations
@@ -8,23 +7,7 @@ from __future__ import annotations
 import hmac
 import os
 
-from fastapi import Header, HTTPException, Query
-
-
-def require_ingest_api_key(authorization: str | None = Header(default=None)) -> None:
-    """FastAPI dependency: require a valid `Authorization: Bearer <key>` header.
-
-    Fails closed if INGEST_API_KEY isn't configured on the server at all,
-    rather than silently accepting every request when misconfigured. Uses
-    a constant-time comparison so a caller can't recover the key byte by
-    byte from response-timing differences.
-    """
-    expected_key = os.environ.get("INGEST_API_KEY")
-    if not expected_key:
-        raise HTTPException(status_code=500, detail="Server is not configured with INGEST_API_KEY")
-
-    if not hmac.compare_digest(authorization or "", f"Bearer {expected_key}"):
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+from fastapi import HTTPException, Query
 
 
 def require_webhook_token(token: str = Query(default="")) -> None:

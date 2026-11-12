@@ -11,10 +11,17 @@ def _db_session():
     from sqlalchemy.orm import sessionmaker
 
     from backend.db import Base
+    from backend.models import Tenant
 
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    return sessionmaker(bind=engine)()
+    db = sessionmaker(bind=engine)()
+    tenant = Tenant(key="test-tenant")
+    db.add(tenant)
+    db.commit()
+    # Tests scope every record and query to this tenant.
+    db.tenant_id = tenant.id
+    return db
 
 
 def _fake_response(status_code: int, json_body: dict):
@@ -36,6 +43,7 @@ def _fake_response(status_code: int, json_body: dict):
 
 def _add_link(db, jira_key="KAN-4", state=COVERED, content_hash="original-hash", content_snapshot=None):
     link = RequirementLink(
+        tenant_id=db.tenant_id,
         jira_key=jira_key,
         test_file="homepage.spec.ts",
         test_title="should load",
@@ -52,7 +60,7 @@ def test_no_links_for_the_issue_is_a_noop():
     db = _db_session()
     client = JiraClient("https://example.atlassian.net", "me@example.com", "token")
     with patch("backend.jira_client.requests.get") as mock_get:
-        flipped = detect_drift_for_issue(db, client, "KAN-4")
+        flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
     assert flipped == 0
     mock_get.assert_not_called()
 
@@ -73,7 +81,7 @@ def test_unchanged_content_does_not_flip_state():
     issue_response = {"key": "KAN-4", "fields": {"summary": "Homepage loads", "description": None}}
     with patch("backend.jira_client.requests.get") as mock_get:
         mock_get.return_value = _fake_response(200, issue_response)
-        flipped = detect_drift_for_issue(db, client, "KAN-4")
+        flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 0
     db.commit()
@@ -90,7 +98,7 @@ def test_changed_content_flips_link_to_suspect():
     with patch("backend.jira_client.requests.get") as mock_get:
         mock_get.return_value = _fake_response(200, issue_response)
         with patch("backend.drift_detection.summarize_change", return_value="The summary was reworded.") as mock_summarize:
-            flipped = detect_drift_for_issue(db, client, "KAN-4")
+            flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 1
     db.commit()
@@ -106,7 +114,7 @@ def test_already_suspect_links_are_left_alone():
     link = _add_link(db, state=SUSPECT)
 
     with patch("backend.jira_client.requests.get") as mock_get:
-        flipped = detect_drift_for_issue(db, client, "KAN-4")
+        flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 0
     mock_get.assert_not_called()
@@ -119,7 +127,7 @@ def test_deleted_issue_is_not_treated_as_drift():
 
     with patch("backend.jira_client.requests.get") as mock_get:
         mock_get.return_value = _fake_response(404, {})
-        flipped = detect_drift_for_issue(db, client, "KAN-4")
+        flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 0
     db.commit()
@@ -134,6 +142,7 @@ def test_multiple_links_sharing_a_prior_hash_call_summarize_change_once():
     client = JiraClient("https://example.atlassian.net", "me@example.com", "token")
     link_a = _add_link(db, content_hash="original-hash")
     link_b = RequirementLink(
+        tenant_id=db.tenant_id,
         jira_key="KAN-4",
         test_file="checkout.spec.ts",
         test_title="should checkout",
@@ -148,7 +157,7 @@ def test_multiple_links_sharing_a_prior_hash_call_summarize_change_once():
     with patch("backend.jira_client.requests.get") as mock_get:
         mock_get.return_value = _fake_response(200, issue_response)
         with patch("backend.drift_detection.summarize_change", return_value="The summary was reworded.") as mock_summarize:
-            flipped = detect_drift_for_issue(db, client, "KAN-4")
+            flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 2
     db.commit()
@@ -173,7 +182,7 @@ def test_summarize_change_failure_still_flips_state():
     with patch("backend.jira_client.requests.get") as mock_get:
         mock_get.return_value = _fake_response(200, issue_response)
         with patch("backend.drift_detection.summarize_change", side_effect=RuntimeError("boom")):
-            flipped = detect_drift_for_issue(db, client, "KAN-4")
+            flipped = detect_drift_for_issue(db, db.tenant_id, client, "KAN-4")
 
     assert flipped == 1
     db.commit()

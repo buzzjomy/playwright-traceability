@@ -25,9 +25,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from backend.auth import require_ingest_api_key, require_webhook_token
+from backend.auth import require_webhook_token
 from backend.db import SessionLocal, get_db, init_db
-from backend.forge_auth import require_forge_invocation_token
 from backend.drift_detection import detect_drift_for_issue
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_polling import poll_for_changes
@@ -38,6 +37,7 @@ from backend.models import (
     JiraWebhookEvent,
     RequirementLink,
     SourceTestRecord,
+    Tenant,
     TestRun,
     TestRunRecord,
     utcnow,
@@ -58,32 +58,49 @@ from backend.schemas import (
     JiraWebhookEventOut,
     RequirementLinkOut,
     RequirementLinksResponse,
+    IngestKeyResponse,
+    TenantInfo,
 )
+from backend.tenancy import current_tenant, generate_ingest_key, get_local_tenant, hash_ingest_key, ingest_tenant
 from backend.semantic_gap import GapAnalysisError, LLMNotConfiguredError, analyze_gap
 from backend.test_inventory import build_inventory, entries_for_jira_key
 
 
-def _connect_jira(db: Session, site_url: str, email: str, api_token: str) -> tuple[JiraConnection, dict]:
+def _connect_jira(db: Session, tenant_id: int, site_url: str, email: str, api_token: str) -> tuple[JiraConnection, dict]:
     """Validate Jira credentials against the live API, replace any existing
     connection with them, and return the new connection row plus the
     validated `/myself` response. Raises JiraAuthError if Jira rejects them.
-    Shared by the manual POST /api/jira/connection endpoint and the
+    Scoped to one tenant. Shared by the manual POST /api/jira/connection endpoint and the
     env-var bootstrap below, so both go through the same validate-then-
     persist path.
     """
     client = JiraClient(site_url, email, api_token)
     me = client.get_current_user()
-    db.query(JiraConnection).delete()
-    connection = JiraConnection(site_url=site_url, email=email, api_token=api_token)
+    db.query(JiraConnection).filter(JiraConnection.tenant_id == tenant_id).delete()
+    connection = JiraConnection(tenant_id=tenant_id, site_url=site_url, email=email, api_token=api_token)
     db.add(connection)
     db.commit()
     return connection, me
 
 
+def _connection_for(db: Session, tenant: Tenant) -> JiraConnection | None:
+    """This tenant's Jira connection, if it has set one up."""
+    return db.query(JiraConnection).filter(JiraConnection.tenant_id == tenant.id).first()
+
+
+def _require_connection(db: Session, tenant: Tenant) -> JiraConnection:
+    """This tenant's Jira connection, or a 400 telling them to set one up."""
+    connection = _connection_for(db, tenant)
+    if connection is None:
+        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    return connection
+
+
 def _bootstrap_jira_connection_from_env() -> None:
     """Auto-create a Jira connection from JIRA_SITE_URL/JIRA_EMAIL/
     JIRA_API_TOKEN env vars on startup, if all three are set and no
-    connection exists yet.
+    connection exists yet for the LOCAL tenant (the deployment owner's own
+    data - other tenants never inherit it).
 
     Lets a self-hosted deployment configure Jira once via its environment
     (matching DATABASE_URL/INGEST_API_KEY/etc.) instead of always needing
@@ -100,7 +117,8 @@ def _bootstrap_jira_connection_from_env() -> None:
 
     db = SessionLocal()
     try:
-        if db.query(JiraConnection).first() is not None:
+        tenant = get_local_tenant(db)
+        if db.query(JiraConnection).filter(JiraConnection.tenant_id == tenant.id).first() is not None:
             return
         try:
             normalized = JiraConnectionCreate(site_url=site_url, email=email, api_token=api_token)
@@ -108,7 +126,7 @@ def _bootstrap_jira_connection_from_env() -> None:
             print("JIRA_SITE_URL is not a valid URL - skipping auto-connect from environment", file=sys.stderr)
             return
         try:
-            _connect_jira(db, str(normalized.site_url), normalized.email, normalized.api_token)
+            _connect_jira(db, tenant.id, str(normalized.site_url), normalized.email, normalized.api_token)
         except JiraAuthError:
             print(
                 "JIRA_SITE_URL/JIRA_EMAIL/JIRA_API_TOKEN were rejected by Jira - skipping auto-connect",
@@ -180,15 +198,16 @@ def _status_from_connection(connection: JiraConnection) -> JiraConnectionStatus:
 @app.post(
     "/api/jira/connection",
     response_model=JiraConnectionStatus,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def create_jira_connection(payload: JiraConnectionCreate, db: Session = Depends(get_db)) -> JiraConnectionStatus:
+def create_jira_connection(
+    payload: JiraConnectionCreate, db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)
+) -> JiraConnectionStatus:
     """Validate the given Jira credentials against the real API, then store them.
 
-    Replaces any existing connection - this is single-tenant for now.
+    Replaces this tenant's existing connection, if any.
     """
     try:
-        connection, me = _connect_jira(db, str(payload.site_url), payload.email, payload.api_token)
+        connection, me = _connect_jira(db, tenant.id, str(payload.site_url), payload.email, payload.api_token)
     except JiraAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
@@ -204,14 +223,13 @@ def create_jira_connection(payload: JiraConnectionCreate, db: Session = Depends(
 @app.get(
     "/api/jira/connection",
     response_model=JiraConnectionStatus,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def get_jira_connection(db: Session = Depends(get_db)) -> JiraConnectionStatus:
+def get_jira_connection(db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)) -> JiraConnectionStatus:
     """Return the current Jira connection status, if one has been set up.
 
     Never returns the stored API token.
     """
-    connection = db.query(JiraConnection).first()
+    connection = _connection_for(db, tenant)
     if connection is None:
         return JiraConnectionStatus(connected=False)
     return _status_from_connection(connection)
@@ -220,23 +238,22 @@ def get_jira_connection(db: Session = Depends(get_db)) -> JiraConnectionStatus:
 @app.delete(
     "/api/jira/connection",
     status_code=204,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def delete_jira_connection(db: Session = Depends(get_db)) -> None:
-    """Remove the current Jira connection, if any."""
-    db.query(JiraConnection).delete()
+def delete_jira_connection(db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)) -> None:
+    """Remove this tenant's Jira connection, if any."""
+    db.query(JiraConnection).filter(JiraConnection.tenant_id == tenant.id).delete()
     db.commit()
 
 
 @app.get(
     "/api/jira/requirements",
     response_model=JiraRequirementsResponse,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
 def get_jira_requirements(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
 ) -> JiraRequirementsResponse:
     """Pull every Story/Task (by default) in a Jira project as requirements.
 
@@ -244,9 +261,7 @@ def get_jira_requirements(
     Requires a Jira connection to already be set up via POST
     /api/jira/connection.
     """
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
@@ -262,17 +277,22 @@ def get_jira_requirements(
     )
 
 
-def _replace_source_records(db: Session, source_type: str, records: list) -> int:
-    """Wipe and re-insert every SourceTestRecord of one source_type ("static"
-    or "feature"), leaving the other source_type's rows untouched."""
-    db.query(SourceTestRecord).filter(SourceTestRecord.source_type == source_type).delete()
+def _replace_source_records(db: Session, tenant_id: int, source_type: str, records: list) -> int:
+    """Wipe and re-insert one tenant's SourceTestRecords of one source_type
+    ("static" or "feature"), leaving the other source_type's rows - and every
+    other tenant's - untouched."""
+    db.query(SourceTestRecord).filter(
+        SourceTestRecord.tenant_id == tenant_id, SourceTestRecord.source_type == source_type
+    ).delete()
     for record in records:
-        db.add(SourceTestRecord(source_type=source_type, **record.model_dump()))
+        db.add(SourceTestRecord(tenant_id=tenant_id, source_type=source_type, **record.model_dump()))
     return len(records)
 
 
-@app.post("/api/ingest/run", response_model=IngestRunResponse, dependencies=[Depends(require_ingest_api_key)])
-def ingest_run(payload: IngestRunRequest, db: Session = Depends(get_db)) -> IngestRunResponse:
+@app.post("/api/ingest/run", response_model=IngestRunResponse)
+def ingest_run(
+    payload: IngestRunRequest, db: Session = Depends(get_db), tenant: Tenant = Depends(ingest_tenant)
+) -> IngestRunResponse:
     """Ingest test inventory data pushed by scripts/push_test_inventory.py.
 
     Each of run_report/static_specs/features is independently optional -
@@ -284,20 +304,20 @@ def ingest_run(payload: IngestRunRequest, db: Session = Depends(get_db)) -> Inge
     response = IngestRunResponse()
 
     if payload.run_report is not None:
-        run = TestRun()
+        run = TestRun(tenant_id=tenant.id)
         db.add(run)
         db.flush()  # assigns run.id without committing yet
         for record in payload.run_report:
-            db.add(TestRunRecord(run_id=run.id, **record.model_dump()))
+            db.add(TestRunRecord(tenant_id=tenant.id, run_id=run.id, **record.model_dump()))
         response.run_id = run.id
         response.pushed_at = run.pushed_at
         response.run_report_count = len(payload.run_report)
 
     if payload.static_specs is not None:
-        response.static_specs_count = _replace_source_records(db, "static", payload.static_specs)
+        response.static_specs_count = _replace_source_records(db, tenant.id, "static", payload.static_specs)
 
     if payload.features is not None:
-        response.features_count = _replace_source_records(db, "feature", payload.features)
+        response.features_count = _replace_source_records(db, tenant.id, "feature", payload.features)
 
     db.commit()
     return response
@@ -322,7 +342,13 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
     issue = payload.get("issue") or {}
     webhook_event = payload.get("webhookEvent", "")
 
+    # The classic webhook is configured by hand with one shared secret and
+    # carries nothing identifying a tenant, so it only ever serves the LOCAL
+    # (deployment-owner) tenant. Marketplace customers get Forge product
+    # events instead (issue #41).
+    tenant = get_local_tenant(db)
     event = JiraWebhookEvent(
+        tenant_id=tenant.id,
         issue_key=issue.get("key", ""),
         webhook_event=webhook_event,
         changelog=payload.get("changelog"),
@@ -331,11 +357,11 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
     db.add(event)
 
     if event.issue_key:
-        connection = db.query(JiraConnection).first()
+        connection = _connection_for(db, tenant)
         if connection is not None:
             client = JiraClient(connection.site_url, connection.email, connection.api_token)
             try:
-                detect_drift_for_issue(db, client, event.issue_key)
+                detect_drift_for_issue(db, tenant.id, client, event.issue_key)
             except Exception:
                 # Recording that the webhook was delivered must succeed
                 # even if re-checking Jira for drift can't (stale stored
@@ -351,9 +377,12 @@ def receive_jira_webhook(payload: dict, db: Session = Depends(get_db)) -> JiraWe
 @app.get(
     "/api/webhooks/jira/events",
     response_model=list[JiraWebhookEventOut],
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def list_jira_webhook_events(limit: int = Query(default=50, le=200), db: Session = Depends(get_db)) -> list[JiraWebhookEvent]:
+def list_jira_webhook_events(
+    limit: int = Query(default=50, le=200),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
+) -> list[JiraWebhookEvent]:
     """List the most recently received webhook events, newest first.
 
     For visibility/debugging while there's no dashboard yet; not
@@ -362,14 +391,17 @@ def list_jira_webhook_events(limit: int = Query(default=50, le=200), db: Session
     """
     return (
         db.query(JiraWebhookEvent)
+        .filter(JiraWebhookEvent.tenant_id == tenant.id)
         .order_by(JiraWebhookEvent.received_at.desc())
         .limit(limit)
         .all()
     )
 
 
-@app.post("/api/jira/poll", response_model=JiraPollResponse, dependencies=[Depends(require_ingest_api_key)])
-def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> JiraPollResponse:
+@app.post("/api/jira/poll", response_model=JiraPollResponse)
+def poll_jira_for_changes(
+    project_key: str, db: Session = Depends(get_db), tenant: Tenant = Depends(ingest_tenant)
+) -> JiraPollResponse:
     """Poll Jira for issues changed since the last poll (issue #11).
 
     Meant to be triggered periodically by an external scheduler (cron, a
@@ -383,11 +415,13 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
     detection) can consume poll-sourced and webhook-sourced events
     through the same table.
     """
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
-    poll_state = db.query(JiraPollState).filter(JiraPollState.project_key == project_key).first()
+    poll_state = (
+        db.query(JiraPollState)
+        .filter(JiraPollState.tenant_id == tenant.id, JiraPollState.project_key == project_key)
+        .first()
+    )
     since = poll_state.last_polled_at if poll_state else None
     # Captured before the search runs, not after, so a change that lands
     # mid-poll is caught on the *next* poll rather than silently skipped.
@@ -402,6 +436,7 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
     for issue in changed_issues:
         db.add(
             JiraWebhookEvent(
+                tenant_id=tenant.id,
                 issue_key=issue.get("key", ""),
                 webhook_event="jira:issue_polled",
                 changelog=None,
@@ -409,10 +444,10 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
             )
         )
         if issue.get("key"):
-            detect_drift_for_issue(db, client, issue["key"])
+            detect_drift_for_issue(db, tenant.id, client, issue["key"])
 
     if poll_state is None:
-        poll_state = JiraPollState(project_key=project_key, last_polled_at=poll_started_at)
+        poll_state = JiraPollState(tenant_id=tenant.id, project_key=project_key, last_polled_at=poll_started_at)
         db.add(poll_state)
     else:
         poll_state.last_polled_at = poll_started_at
@@ -429,9 +464,8 @@ def poll_jira_for_changes(project_key: str, db: Session = Depends(get_db)) -> Ji
 @app.get(
     "/api/inventory",
     response_model=InventoryResponse,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
+def get_test_inventory(db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)) -> InventoryResponse:
     """Return the reconciled test inventory (issue #12).
 
     Combines TestRunRecord (from pushed runs) and SourceTestRecord (from
@@ -440,18 +474,18 @@ def get_test_inventory(db: Session = Depends(get_db)) -> InventoryResponse:
     authenticated (read-only, local-only use, same posture as the other
     GET endpoints).
     """
-    return InventoryResponse(entries=[e.to_dict() for e in build_inventory(db)])
+    return InventoryResponse(entries=[e.to_dict() for e in build_inventory(db, tenant.id)])
 
 
 @app.get(
     "/api/coverage",
     response_model=CoverageResponse,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
 def get_requirement_coverage(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
 ) -> CoverageResponse:
     """Return per-requirement test coverage for a Jira project (issue #13).
 
@@ -461,13 +495,11 @@ def get_requirement_coverage(
     it at all. Requires a Jira connection to already be set up via POST
     /api/jira/connection. Not authenticated (read-only, local-only use).
     """
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
-    inventory_entries = build_inventory(db)
+    inventory_entries = build_inventory(db, tenant.id)
 
     try:
         coverage = build_coverage(client, project_key, inventory_entries, issue_types=types)
@@ -487,12 +519,12 @@ def get_requirement_coverage(
 @app.get(
     "/api/requirement-links",
     response_model=RequirementLinksResponse,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
 def get_requirement_links(
     project_key: str,
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
 ) -> RequirementLinksResponse:
     """Return every requirement<->test link for a Jira project, with its
     suspect-link state (Milestone 4, issue #18).
@@ -503,32 +535,31 @@ def get_requirement_links(
     POST /api/jira/connection. Not authenticated (read-only, local-only
     use, same posture as the other GET endpoints).
     """
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
-    inventory_entries = build_inventory(db)
+    inventory_entries = build_inventory(db, tenant.id)
 
     try:
         requirements = pull_requirements(client, project_key, issue_types=types)
     except JiraAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
-    sync_requirement_links(db, requirements, inventory_entries)
+    sync_requirement_links(db, tenant.id, requirements, inventory_entries)
     db.commit()
 
-    links = list_requirement_links(db, project_key, requirements, inventory_entries)
+    links = list_requirement_links(db, tenant.id, project_key, requirements, inventory_entries)
     return RequirementLinksResponse(project_key=project_key, links=[link.to_dict() for link in links])
 
 
 @app.post(
     "/api/requirement-links/{link_id}/reviewed",
     response_model=RequirementLinkOut,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict:
+def review_requirement_link(
+    link_id: int, db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)
+) -> dict:
     """Manually clear a link's Suspect state by re-snapshotting it against
     Jira's current content (Milestone 4, issue #20).
 
@@ -540,12 +571,12 @@ def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict
     there's nothing current to review it against).
     """
     link = db.get(RequirementLink, link_id)
-    if link is None:
+    # Another tenant's link is reported as missing, not forbidden: a 403
+    # would confirm that the id exists in someone else's data.
+    if link is None or link.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="No such requirement link")
 
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     try:
@@ -576,9 +607,10 @@ def review_requirement_link(link_id: int, db: Session = Depends(get_db)) -> dict
 @app.post(
     "/api/coverage/gap-analysis",
     response_model=GapAnalysisResponse,
-    dependencies=[Depends(require_forge_invocation_token)],
 )
-def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_db)) -> GapAnalysisResponse:
+def get_gap_analysis(
+    project_key: str, jira_key: str, db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)
+) -> GapAnalysisResponse:
     """Judge, per acceptance criterion, whether jira_key's linked tests
     actually cover it (Milestone 5, issues #21/#22) - the differentiator
     over coverage's "does at least one test exist" (issue #13).
@@ -592,9 +624,7 @@ def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_
     if not jira_key.startswith(f"{project_key}-"):
         raise HTTPException(status_code=400, detail=f"{jira_key} does not belong to project {project_key}")
 
-    connection = db.query(JiraConnection).first()
-    if connection is None:
-        raise HTTPException(status_code=400, detail="No Jira connection configured yet")
+    connection = _require_connection(db, tenant)
 
     client = JiraClient(connection.site_url, connection.email, connection.api_token)
     try:
@@ -605,7 +635,7 @@ def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_
     if requirement is None:
         raise HTTPException(status_code=404, detail=f"{jira_key} does not resolve in Jira")
 
-    linked_tests = entries_for_jira_key(build_inventory(db), jira_key)
+    linked_tests = entries_for_jira_key(build_inventory(db, tenant.id), jira_key)
 
     try:
         results = analyze_gap(requirement.acceptance_criteria, linked_tests)
@@ -620,3 +650,28 @@ def get_gap_analysis(project_key: str, jira_key: str, db: Session = Depends(get_
         criteria=[r.to_dict() for r in results],
         uncovered_count=uncovered_count,
     )
+
+
+@app.get("/api/tenant", response_model=TenantInfo)
+def get_tenant_info(tenant: Tenant = Depends(current_tenant)) -> TenantInfo:
+    """This installation's own identity and whether it has a CI ingest key
+    (issue #42). Only ever describes the caller's own tenant."""
+    return TenantInfo(
+        installation_id=tenant.key,
+        cloud_id=tenant.cloud_id,
+        has_ingest_key=tenant.ingest_key_hash is not None,
+    )
+
+
+@app.post("/api/tenant/ingest-key", response_model=IngestKeyResponse)
+def rotate_ingest_key(db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)) -> IngestKeyResponse:
+    """Generate (or replace) this tenant's CI ingest key (issue #42).
+
+    The plaintext key is returned exactly once, here; only its hash is
+    stored, so it can't be shown again - lose it and generate a new one.
+    Generating a new key immediately invalidates the previous one.
+    """
+    key = generate_ingest_key()
+    tenant.ingest_key_hash = hash_ingest_key(key)
+    db.commit()
+    return IngestKeyResponse(ingest_key=key)

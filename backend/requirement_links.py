@@ -60,7 +60,7 @@ class RequirementLinkView:
 
 
 def sync_requirement_links(
-    db: Session, requirements: list[JiraRequirement], inventory_entries: list[InventoryEntry]
+    db: Session, tenant_id: int, requirements: list[JiraRequirement], inventory_entries: list[InventoryEntry]
 ) -> None:
     """Create a RequirementLink (state=covered, hashed now) for every
     (jira_key, test) pair newly observed in the inventory - issue #16's
@@ -72,7 +72,9 @@ def sync_requirement_links(
     """
     requirement_by_key = {r.key: r for r in requirements}
     existing = set(
-        db.query(RequirementLink.jira_key, RequirementLink.test_file, RequirementLink.test_title).all()
+        db.query(RequirementLink.jira_key, RequirementLink.test_file, RequirementLink.test_title)
+        .filter(RequirementLink.tenant_id == tenant_id)
+        .all()
     )
 
     seen_this_call: set[tuple[str, str, str]] = set()
@@ -90,6 +92,7 @@ def sync_requirement_links(
                 continue
             db.add(
                 RequirementLink(
+                    tenant_id=tenant_id,
                     jira_key=jira_key,
                     test_file=entry.file,
                     test_title=entry.title,
@@ -113,7 +116,7 @@ def resolve_effective_state(link: RequirementLink, test_exists: bool, requiremen
 
 
 def list_requirement_links(
-    db: Session, project_key: str, requirements: list[JiraRequirement], inventory_entries: list[InventoryEntry]
+    db: Session, tenant_id: int, project_key: str, requirements: list[JiraRequirement], inventory_entries: list[InventoryEntry]
 ) -> list[RequirementLinkView]:
     """Return every RequirementLink for a project, with effective state resolved.
 
@@ -124,7 +127,11 @@ def list_requirement_links(
     requirement_keys = {r.key for r in requirements}
     test_keys = {(e.file, e.title) for e in inventory_entries}
 
-    links = db.query(RequirementLink).filter(RequirementLink.jira_key.like(f"{project_key}-%")).all()
+    links = (
+        db.query(RequirementLink)
+        .filter(RequirementLink.tenant_id == tenant_id, RequirementLink.jira_key.like(f"{project_key}-%"))
+        .all()
+    )
 
     views = [
         RequirementLinkView(

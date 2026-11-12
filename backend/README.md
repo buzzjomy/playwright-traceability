@@ -169,12 +169,12 @@ after the test run):
 
 ### Why an API key here, unlike the Jira endpoints
 
-`/api/ingest/run` is meant to be called from outside — a GitHub Action
-runner, not just local dev — so unlike the local-only Jira setup
-endpoints, it requires a shared secret (`INGEST_API_KEY` env var, checked
-as a Bearer token). The endpoint fails closed (returns `500`) if the
-server itself isn't configured with a key, rather than silently accepting
-every request.
+`/api/ingest/run` is meant to be called from outside — a CI runner, not
+just local dev — so it requires a Bearer key. Keys are **per tenant** (see
+"Multi-tenancy" below): the key presented decides whose data a push lands
+in. A key that matches no tenant is a `401` — never a default tenant. The
+legacy global `INGEST_API_KEY` env var is still honoured and maps to the
+`local` tenant, so existing pushes keep working.
 
 ### Run history vs. source snapshots
 
@@ -548,12 +548,53 @@ moat, not an incremental feature.
   and not built here. Gap analysis today is stateless - every call re-runs
   the judgment fresh, nothing is persisted.
 
+## Multi-tenancy (issues #40/#42)
+
+Every customer installation is a `Tenant`, and every tenant-owned table
+(`jira_connections`, `test_runs`, `test_run_records`, `source_test_records`,
+`jira_webhook_events`, `jira_poll_state`, `requirement_links`) carries a
+`tenant_id`. Every query is scoped to one; nothing reads across tenants.
+
+**Who is calling** (`backend/tenancy.py`):
+
+- *Dashboard (Forge) routes* — the tenant is the verified Forge Invocation
+  Token's `app.installationId`, never anything the caller supplies. A token
+  without one is a `401`. With `REQUIRE_FORGE_AUTH` off (local dev, the
+  standalone `frontend/`), everything is the single `local` tenant.
+- *CI routes* (`/api/ingest/run`, `/api/jira/poll`) — the tenant that owns
+  the Bearer key. Keys are generated from the Forge app's Settings tab
+  (`POST /api/tenant/ingest-key`), shown **once**, and stored only as a
+  SHA-256 hash; generating a new one invalidates the old.
+- *The classic Jira webhook* (shared secret, no tenant in the payload) only
+  serves the `local` tenant. Marketplace customers need Forge product
+  events instead — issue #41.
+
+**`LOCAL_TENANT_INSTALLATION_ID`** (optional env var): serves that one
+installation the `local` tenant, i.e. the deployment owner's own data and
+env-bootstrapped Jira connection. A temporary bridge until #41/#42 give
+every installation its own Jira access and key — set it only to the
+owner's own installation id (shown in the Settings tab).
+
+A tenant never inherits another's Jira connection: with none of its own, a
+Jira-backed call is a `400`, not a fall-back to someone else's credentials.
+Asking for another tenant's requirement link returns `404`, not `403`, so
+its existence isn't confirmed.
+
+## Database migrations
+
+Schema changes go through Alembic (`backend/migrations/`); the app runs
+`alembic upgrade head` at startup (`db.init_db`). `0001` is the pre-tenancy
+baseline and `0002` adds tenancy, backfilling existing rows into the `local`
+tenant. A database created by the old `create_all` has no `alembic_version`
+table, so it is **stamped** at `0001` first and only `0002` runs on it.
+`tests/test_migrations_postgres.py` runs the same migrations against a real
+Postgres in CI (set `MIGRATION_TEST_DATABASE_URL` to run it locally).
+
 ## Design notes for whoever picks up the next issue
 
-- This is single-tenant for now — `JiraConnection` is a one-row table,
-  and creating a new connection replaces the old one outright. Multi-tenant
-  support (one connection per user/org) is real work for whenever this
-  becomes a multi-user product, not before.
+- Multi-tenancy is in (issues #40/#42, below), but each tenant's Jira
+  access is still a stored email + API token; issue #41 replaces that with
+  Forge's app token so a Marketplace customer isn't asked for one.
 - `api_token` is stored as given, in plaintext, in the local DB. Acceptable
   for a solo builder's own local MVP; this is a known gap to close (e.g.
   encryption at rest) before any multi-user or production deployment.

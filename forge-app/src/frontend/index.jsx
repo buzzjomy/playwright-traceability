@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ForgeReconciler, { Tab, TabList, TabPanel, Tabs } from '@forge/react';
 import { CoverageView } from './CoverageView';
 import { InventoryView } from './InventoryView';
+import { SettingsView } from './SettingsView';
 import { fetchJiraConnection } from './lib/forgeApi';
 
 // Mirrors frontend/src/App.tsx: two views behind tabs, and a best-effort
@@ -20,12 +21,16 @@ const App = () => {
       <TabList>
         <Tab>Test Inventory</Tab>
         <Tab>Requirement Coverage</Tab>
+        <Tab>Settings</Tab>
       </TabList>
       <TabPanel>
         <InventoryView siteUrl={siteUrl} />
       </TabPanel>
       <TabPanel>
         <CoverageView siteUrl={siteUrl} />
+      </TabPanel>
+      <TabPanel>
+        <SettingsView />
       </TabPanel>
     </Tabs>
   );

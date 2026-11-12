@@ -36,7 +36,9 @@ def client(tmp_path):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    with patch("backend.main.SessionLocal", testing_session):
+    # The lifespan would migrate the real dev database; this test DB already
+    # has its schema from create_all above.
+    with patch("backend.main.SessionLocal", testing_session), patch("backend.main.init_db"):
         with TestClient(app) as test_client:
             yield test_client
     app.dependency_overrides.clear()

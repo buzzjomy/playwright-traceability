@@ -88,13 +88,13 @@ class InventoryEntry:
         }
 
 
-def build_inventory(db: Session) -> list[InventoryEntry]:
-    """Build the reconciled test inventory from the current DB contents."""
+def build_inventory(db: Session, tenant_id: int) -> list[InventoryEntry]:
+    """Build one tenant's reconciled test inventory from the current DB contents."""
     source_by_key: dict[tuple[str, str], SourceTestRecord] = {}
-    for record in db.query(SourceTestRecord).all():
+    for record in db.query(SourceTestRecord).filter(SourceTestRecord.tenant_id == tenant_id).all():
         source_by_key[(record.file, record.title)] = record
 
-    pushed_at_by_run_id: dict[int, datetime] = {run.id: run.pushed_at for run in db.query(TestRun).all()}
+    pushed_at_by_run_id: dict[int, datetime] = {run.id: run.pushed_at for run in db.query(TestRun).filter(TestRun.tenant_id == tenant_id).all()}
 
     # TestRunRecord is append-only across every push - every row (not just
     # the latest) is kept here so a per-project trend history can be built,
@@ -110,7 +110,7 @@ def build_inventory(db: Session) -> list[InventoryEntry]:
         )
         .label("rn")
     )
-    windowed = select(TestRunRecord, row_number).subquery()
+    windowed = select(TestRunRecord, row_number).where(TestRunRecord.tenant_id == tenant_id).subquery()
     windowed_record = aliased(TestRunRecord, windowed)
 
     all_runs_by_key: dict[tuple[str, str, str], list[TestRunRecord]] = defaultdict(list)

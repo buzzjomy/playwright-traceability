@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.db import Base
 from backend.main import _bootstrap_jira_connection_from_env
 from backend.models import JiraConnection
+from backend.tenancy import get_local_tenant
 
 
 def _session_factory():
@@ -69,8 +70,10 @@ def test_does_not_overwrite_an_existing_connection(monkeypatch):
 
     session_factory = _session_factory()
     db = session_factory()
+    tenant = get_local_tenant(db)
     db.add(
         JiraConnection(
+            tenant_id=tenant.id,
             site_url="https://already-connected.atlassian.net/",
             email="existing@example.com",
             api_token="existing-token",
