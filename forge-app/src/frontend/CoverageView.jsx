@@ -10,10 +10,12 @@ import {
   Stack,
   Text,
   Textfield,
+  useProductContext,
 } from '@forge/react';
 import { fetchCoverage, fetchGapAnalysis, fetchRequirementLinks, markLinkReviewed } from './lib/forgeApi';
 import { groupLinksByKey, linkStateAppearance, rollUpHealth, unmatchedKeys } from './lib/health';
 import { jiraBrowseUrl } from './lib/inventory';
+import { projectKeyFromContext, resolveProjectKey } from './lib/projectContext';
 
 // Ported from frontend/src/CoverageView.tsx (issues #31/#32: table + row
 // selection, and the detail panel below it). UI Kit's DynamicTable has no
@@ -102,7 +104,13 @@ const GapList = ({ criteria }) => (
 );
 
 export const CoverageView = ({ siteUrl }) => {
-  const [inputValue, setInputValue] = useState(DEFAULT_PROJECT_KEY);
+  // Inside Jira the project comes from the page we're embedded in; the
+  // Textfield stays as a manual override (and the fallback when there's no
+  // project context). The context arrives asynchronously, so the first load
+  // waits for it instead of flashing the fallback project.
+  const context = useProductContext();
+  const detectedKey = projectKeyFromContext(context);
+  const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -117,6 +125,7 @@ export const CoverageView = ({ siteUrl }) => {
   const [analyzingKey, setAnalyzingKey] = useState(null);
   // The project the loaded data belongs to (the input may have been edited since).
   const [loadedKey, setLoadedKey] = useState(DEFAULT_PROJECT_KEY);
+  const [autoLoaded, setAutoLoaded] = useState(false);
 
   const load = (key) => {
     setLoading(true);
@@ -137,8 +146,10 @@ export const CoverageView = ({ siteUrl }) => {
   };
 
   useEffect(() => {
-    load(DEFAULT_PROJECT_KEY);
-  }, []);
+    if (context === undefined || autoLoaded) return;
+    setAutoLoaded(true);
+    load(resolveProjectKey({ override: '', detected: detectedKey, fallback: DEFAULT_PROJECT_KEY }));
+  }, [context]);
 
   const selectRow = (key) => {
     setSelectedKey((current) => (current === key ? null : key));
@@ -202,10 +213,10 @@ export const CoverageView = ({ siteUrl }) => {
         <Textfield
           name="project-key"
           aria-label="Jira project key"
-          defaultValue={DEFAULT_PROJECT_KEY}
+          placeholder={detectedKey ?? DEFAULT_PROJECT_KEY}
           onChange={(e) => setInputValue(e.target.value)}
         />
-        <Button appearance="primary" isDisabled={loading || !inputValue.trim()} onClick={() => load(inputValue.trim())}>
+        <Button appearance="primary" isDisabled={loading} onClick={() => load(resolveProjectKey({ override: inputValue, detected: detectedKey, fallback: DEFAULT_PROJECT_KEY }))}>
           {loading ? 'Loading…' : 'Load coverage'}
         </Button>
       </Inline>
