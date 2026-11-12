@@ -83,6 +83,7 @@ Interactive API docs (Swagger UI) are then at `http://127.0.0.1:8000/docs`.
 | `POST` | `/api/ingest/run` | Ingest test inventory data (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 | `POST` | `/api/webhooks/jira?token=...` | Receive a Jira webhook event (see below). Requires `?token=<JIRA_WEBHOOK_SECRET>`. |
 | `GET` | `/api/webhooks/jira/events` | List recently received webhook events, newest first. Not authenticated (read-only, local-only use). |
+| `POST` | `/api/ingest/playwright` | Ingest the Playwright reporter package's upload: a report in JSON-reporter shape and/or a static scan's raw facts, interpreted with the CLI's own parsers (issue #44; see `reporter/README.md`). Requires `Authorization: Bearer <ingest key>`. |
 | `POST` | `/api/jira/poll?project_key=KAN` | Poll Jira for issues changed since the last poll (see below). Requires `Authorization: Bearer <INGEST_API_KEY>`. |
 | `GET` | `/api/inventory` | The reconciled test inventory (see below) — what `frontend/`'s dashboard reads. Not authenticated (read-only, local-only use). |
 | `GET` | `/api/coverage?project_key=KAN` | Per-requirement test coverage for a Jira project (see below). Not authenticated (read-only, local-only use). |

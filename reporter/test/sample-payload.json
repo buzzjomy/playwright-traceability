@@ -1,0 +1,319 @@
+{
+  "report": {
+    "suites": [
+      {
+        "title": "reporter/test/fixture/tests/basic.spec.ts",
+        "file": "reporter/test/fixture/tests/basic.spec.ts",
+        "specs": [
+          {
+            "id": "8946741c555a0c4515d8-0bf48fdfa3fbbbf1a7a4",
+            "title": "passes everywhere",
+            "file": "reporter/test/fixture/tests/basic.spec.ts",
+            "line": 4,
+            "column": 5,
+            "tags": [],
+            "tests": [
+              {
+                "projectName": "alpha",
+                "annotations": [],
+                "status": "expected",
+                "results": [
+                  {
+                    "status": "passed",
+                    "duration": 4,
+                    "errors": []
+                  }
+                ]
+              },
+              {
+                "projectName": "beta",
+                "annotations": [],
+                "status": "expected",
+                "results": [
+                  {
+                    "status": "passed",
+                    "duration": 3,
+                    "errors": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "8946741c555a0c4515d8-ab8637efa9b3c1972824",
+            "title": "fails always",
+            "file": "reporter/test/fixture/tests/basic.spec.ts",
+            "line": 8,
+            "column": 5,
+            "tags": [
+              "@broken"
+            ],
+            "tests": [
+              {
+                "projectName": "alpha",
+                "annotations": [],
+                "status": "unexpected",
+                "results": [
+                  {
+                    "status": "failed",
+                    "duration": 2,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m2\u001b[39m\nReceived: \u001b[31m1\u001b[39m"
+                      }
+                    ]
+                  },
+                  {
+                    "status": "failed",
+                    "duration": 4,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m2\u001b[39m\nReceived: \u001b[31m1\u001b[39m"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "projectName": "beta",
+                "annotations": [],
+                "status": "unexpected",
+                "results": [
+                  {
+                    "status": "failed",
+                    "duration": 2,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m2\u001b[39m\nReceived: \u001b[31m1\u001b[39m"
+                      }
+                    ]
+                  },
+                  {
+                    "status": "failed",
+                    "duration": 6,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m2\u001b[39m\nReceived: \u001b[31m1\u001b[39m"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "8946741c555a0c4515d8-13abb39996cf0fad37f6",
+            "title": "is skipped",
+            "file": "reporter/test/fixture/tests/basic.spec.ts",
+            "line": 12,
+            "column": 6,
+            "tags": [],
+            "tests": [
+              {
+                "projectName": "alpha",
+                "annotations": [
+                  {
+                    "type": "skip"
+                  }
+                ],
+                "status": "skipped",
+                "results": [
+                  {
+                    "status": "skipped",
+                    "duration": 0,
+                    "errors": []
+                  }
+                ]
+              },
+              {
+                "projectName": "beta",
+                "annotations": [
+                  {
+                    "type": "skip"
+                  }
+                ],
+                "status": "skipped",
+                "results": [
+                  {
+                    "status": "skipped",
+                    "duration": 0,
+                    "errors": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "8946741c555a0c4515d8-b23945f7df6f9fd0ddfb",
+            "title": "flaky until retried",
+            "file": "reporter/test/fixture/tests/basic.spec.ts",
+            "line": 14,
+            "column": 5,
+            "tags": [],
+            "tests": [
+              {
+                "projectName": "alpha",
+                "annotations": [],
+                "status": "flaky",
+                "results": [
+                  {
+                    "status": "failed",
+                    "duration": 3,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m"
+                      }
+                    ]
+                  },
+                  {
+                    "status": "passed",
+                    "duration": 4,
+                    "errors": []
+                  }
+                ]
+              },
+              {
+                "projectName": "beta",
+                "annotations": [],
+                "status": "flaky",
+                "results": [
+                  {
+                    "status": "failed",
+                    "duration": 3,
+                    "errors": [
+                      {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m"
+                      }
+                    ]
+                  },
+                  {
+                    "status": "passed",
+                    "duration": 3,
+                    "errors": []
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "suites": [
+          {
+            "title": "Checkout",
+            "file": "reporter/test/fixture/tests/basic.spec.ts",
+            "specs": [
+              {
+                "id": "8946741c555a0c4515d8-beeb7468bcdb83d39658",
+                "title": "has a Jira annotation",
+                "file": "reporter/test/fixture/tests/basic.spec.ts",
+                "line": 19,
+                "column": 7,
+                "tags": [],
+                "tests": [
+                  {
+                    "projectName": "alpha",
+                    "annotations": [
+                      {
+                        "type": "jira",
+                        "description": "SHOP-7"
+                      }
+                    ],
+                    "status": "expected",
+                    "results": [
+                      {
+                        "status": "passed",
+                        "duration": 3,
+                        "errors": []
+                      }
+                    ]
+                  },
+                  {
+                    "projectName": "beta",
+                    "annotations": [
+                      {
+                        "type": "jira",
+                        "description": "SHOP-7"
+                      }
+                    ],
+                    "status": "expected",
+                    "results": [
+                      {
+                        "status": "passed",
+                        "duration": 2,
+                        "errors": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "suites": []
+          }
+        ]
+      }
+    ]
+  },
+  "static_facts": [
+    {
+      "title": "passes everywhere",
+      "ancestors": [],
+      "file": "reporter/test/fixture/tests/basic.spec.ts",
+      "line": 4,
+      "column": 1,
+      "tag_option": [],
+      "leading_comment_text": "// KAN-4",
+      "assertions": [
+        "expect(1 + 1).toBe(2)"
+      ]
+    },
+    {
+      "title": "fails always",
+      "ancestors": [],
+      "file": "reporter/test/fixture/tests/basic.spec.ts",
+      "line": 8,
+      "column": 1,
+      "tag_option": [
+        "@broken"
+      ],
+      "leading_comment_text": "",
+      "assertions": [
+        "expect(1).toBe(2)"
+      ]
+    },
+    {
+      "title": "is skipped",
+      "ancestors": [],
+      "file": "reporter/test/fixture/tests/basic.spec.ts",
+      "line": 12,
+      "column": 1,
+      "tag_option": [],
+      "leading_comment_text": "",
+      "assertions": []
+    },
+    {
+      "title": "flaky until retried",
+      "ancestors": [],
+      "file": "reporter/test/fixture/tests/basic.spec.ts",
+      "line": 14,
+      "column": 1,
+      "tag_option": [],
+      "leading_comment_text": "",
+      "assertions": [
+        "expect(testInfo.retry).toBeGreaterThan(0)"
+      ]
+    },
+    {
+      "title": "has a Jira annotation",
+      "ancestors": [
+        "Checkout"
+      ],
+      "file": "reporter/test/fixture/tests/basic.spec.ts",
+      "line": 19,
+      "column": 3,
+      "tag_option": [],
+      "leading_comment_text": "",
+      "assertions": [
+        "expect(\"ok\").toBe(\"ok\")"
+      ]
+    }
+  ]
+}

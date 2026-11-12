@@ -60,10 +60,15 @@ def _run_node_parser(files: list[Path]) -> list[dict]:
     return json.loads(result.stdout)
 
 
-def parse_spec_files(files: list[str | Path]) -> list[StaticTestRecord]:
-    """Statically parse the given .spec.ts files into StaticTestRecords."""
-    raw_records = _run_node_parser([Path(f) for f in files])
+def records_from_raw(raw_records: list[dict]) -> list[StaticTestRecord]:
+    """Interpret raw facts emitted by static_parser/parse_specs.js as
+    StaticTestRecords (Jira keys from the tag option, leading comment and
+    title; full titles from the describe ancestry).
 
+    Pure - no Node involved - so the backend can apply these same rules to
+    facts a Playwright reporter scanned on the customer's side, keeping a
+    single copy of the business logic.
+    """
     records: list[StaticTestRecord] = []
     for raw in raw_records:
         title = raw["title"]
@@ -87,6 +92,11 @@ def parse_spec_files(files: list[str | Path]) -> list[StaticTestRecord]:
             )
         )
     return records
+
+
+def parse_spec_files(files: list[str | Path]) -> list[StaticTestRecord]:
+    """Statically parse the given .spec.ts files into StaticTestRecords."""
+    return records_from_raw(_run_node_parser([Path(f) for f in files]))
 
 
 def parse_spec_directory(root: str | Path) -> list[StaticTestRecord]:

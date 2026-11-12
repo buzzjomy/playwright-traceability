@@ -44,12 +44,17 @@ from backend.models import (
     utcnow,
 )
 from backend.requirement_coverage import build_coverage
+from parser.report_parser import parse_report
+from parser.static_parser import records_from_raw
 from backend.requirement_links import list_requirement_links, mark_reviewed, sync_requirement_links
 from backend.schemas import (
     CoverageResponse,
     GapAnalysisResponse,
     IngestRunRequest,
     IngestRunResponse,
+    PlaywrightIngestRequest,
+    SourceTestRecordIn,
+    TestRunRecordIn,
     InventoryResponse,
     JiraConnectionCreate,
     JiraConnectionStatus,
@@ -295,11 +300,8 @@ def _replace_source_records(db: Session, tenant_id: int, source_type: str, recor
     return len(records)
 
 
-@app.post("/api/ingest/run", response_model=IngestRunResponse)
-def ingest_run(
-    payload: IngestRunRequest, db: Session = Depends(get_db), tenant: Tenant = Depends(ingest_tenant)
-) -> IngestRunResponse:
-    """Ingest test inventory data pushed by scripts/push_test_inventory.py.
+def _apply_ingest(db: Session, tenant: Tenant, payload: IngestRunRequest) -> IngestRunResponse:
+    """Store one push of test inventory data for a tenant.
 
     Each of run_report/static_specs/features is independently optional -
     see IngestRunRequest's docstring for the None-vs-[] semantics. Run
@@ -327,6 +329,41 @@ def ingest_run(
 
     db.commit()
     return response
+
+
+@app.post("/api/ingest/run", response_model=IngestRunResponse)
+def ingest_run(
+    payload: IngestRunRequest, db: Session = Depends(get_db), tenant: Tenant = Depends(ingest_tenant)
+) -> IngestRunResponse:
+    """Ingest test inventory data pushed by scripts/push_test_inventory.py."""
+    return _apply_ingest(db, tenant, payload)
+
+
+@app.post("/api/ingest/playwright", response_model=IngestRunResponse)
+def ingest_playwright(
+    payload: PlaywrightIngestRequest, db: Session = Depends(get_db), tenant: Tenant = Depends(ingest_tenant)
+) -> IngestRunResponse:
+    """Ingest the raw output of the Playwright reporter package (issue #44).
+
+    The reporter sends a report in Playwright's JSON-reporter shape and the
+    raw facts of a static spec scan; both are interpreted here with the same
+    parsers the CLI uses (parser/report_parser.py, parser/static_parser.py).
+    A report that isn't a JSON-reporter report is a 422, not a silent empty run.
+    """
+    run_report = None
+    if payload.report is not None:
+        if not isinstance(payload.report.get("suites"), list):
+            raise HTTPException(status_code=422, detail="report must be in Playwright's JSON reporter format (a 'suites' list)")
+        run_report = [TestRunRecordIn(**r.to_dict()) for r in parse_report(payload.report)]
+
+    static_specs = None
+    if payload.static_facts is not None:
+        try:
+            static_specs = [SourceTestRecordIn(**r.to_dict()) for r in records_from_raw(payload.static_facts)]
+        except (KeyError, TypeError) as exc:
+            raise HTTPException(status_code=422, detail=f"static_facts is malformed: {type(exc).__name__}") from exc
+
+    return _apply_ingest(db, tenant, IngestRunRequest(run_report=run_report, static_specs=static_specs))
 
 
 @app.post("/api/webhooks/jira", response_model=JiraWebhookAck, dependencies=[Depends(require_webhook_token)])
