@@ -38,3 +38,14 @@ export function fetchCoverage(projectKey) {
 export function fetchRequirementLinks(projectKey) {
   return callBackend(`/api/requirement-links?project_key=${encodeURIComponent(projectKey)}`, 'GET');
 }
+
+/** POST /api/requirement-links/{id}/reviewed - the only way a Suspect link is cleared. */
+export function markLinkReviewed(linkId) {
+  return callBackend(`/api/requirement-links/${linkId}/reviewed`, 'POST');
+}
+
+/** POST /api/coverage/gap-analysis - per-criterion LLM verdicts for one requirement (a real LLM call). */
+export function fetchGapAnalysis(projectKey, jiraKey) {
+  const params = new URLSearchParams({ project_key: projectKey, jira_key: jiraKey });
+  return callBackend(`/api/coverage/gap-analysis?${params.toString()}`, 'POST');
+}
