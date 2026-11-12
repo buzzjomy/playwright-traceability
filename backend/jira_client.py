@@ -1,10 +1,10 @@
 """Minimal Jira Cloud REST API client.
 
 Handles just enough to support issue #6 (auth + connection setup) and set
-up issue #7 (pulling requirement/story data) on the same client. Uses
-email + API token via HTTP Basic Auth, per Atlassian's documented Jira
-Cloud REST API auth scheme - see README's Jira Integration section for why
-OAuth 2.0 (3-legged) was deferred for the MVP.
+up issue #7 (pulling requirement/story data) on the same client. Authenticates
+either with email + API token over HTTP Basic Auth (see README's Jira
+Integration section for why OAuth 2.0 (3-legged) was deferred) or, for
+Marketplace customers, with a Forge app system token (issue #41).
 """
 
 from __future__ import annotations
@@ -15,30 +15,49 @@ _TIMEOUT_SECONDS = 10
 
 
 class JiraAuthError(Exception):
-    """Raised when Jira rejects the given email/API token combination."""
+    """Raised when Jira rejects the credentials a client was built with."""
 
 
 class JiraClient:
     """A thin wrapper around one Jira Cloud site's REST API.
 
-    Authenticates every request via HTTP Basic Auth (email + API token).
+    Two authentication modes, chosen by how it's built:
+
+    - Basic (email + API token): local dev, the standalone dashboard, and
+      the deployment owner's own tenant. `JiraClient(site_url, email, token)`.
+    - Bearer (a Forge app system token): every Marketplace customer - the
+      app calls Jira as its own bot user, so no customer credentials are
+      ever collected. `JiraClient.with_bearer_token(api_base_url, token)`,
+      where api_base_url is the `app.apiBaseUrl` claim of the verified
+      Forge Invocation Token (https://api.atlassian.com/ex/jira/<cloudId>).
     """
 
-    def __init__(self, site_url: str, email: str, api_token: str) -> None:
+    def __init__(
+        self, site_url: str, email: str | None = None, api_token: str | None = None, *, bearer_token: str | None = None
+    ) -> None:
         self.site_url = site_url.rstrip("/")
-        self._auth = (email, api_token)
+        self._auth = (email, api_token) if bearer_token is None else None
+        self._bearer_token = bearer_token
+
+    @classmethod
+    def with_bearer_token(cls, api_base_url: str, token: str) -> "JiraClient":
+        """A client that authenticates with a Forge app system token."""
+        return cls(api_base_url, bearer_token=token)
 
     def _get(self, path: str, params: dict | None = None) -> dict:
         """Issue a GET request against this Jira site and return the parsed JSON body."""
+        headers = {"Accept": "application/json"}
+        if self._bearer_token is not None:
+            headers["Authorization"] = f"Bearer {self._bearer_token}"
         response = requests.get(
             f"{self.site_url}{path}",
             auth=self._auth,
-            headers={"Accept": "application/json"},
+            headers=headers,
             params=params,
             timeout=_TIMEOUT_SECONDS,
         )
         if response.status_code == 401:
-            raise JiraAuthError("Jira rejected the given email/API token combination")
+            raise JiraAuthError("Jira rejected the given credentials")
         response.raise_for_status()
         return response.json()
 

@@ -4,19 +4,32 @@ modules:
       resource: main
       render: native
       title: Traceability
+      # Frontend calls go through this endpoint (invokeRemote), which is what
+      # makes Forge attach the app system token the backend reads Jira with.
+      resolver:
+        endpoint: traceability-endpoint
+  endpoint:
+    - key: traceability-endpoint
+      remote: traceability-backend
+      auth:
+        appSystemToken:
+          enabled: true
 resources:
   - key: main
     path: src/frontend/index.jsx
 # The FastAPI backend (backend/, deployed to Fly.io - issue #27) this app
-# calls as a Forge Remote. `operations: [fetch]` declares we only call it
-# from the frontend via requestRemote().
+# calls as a Forge Remote, from the frontend via invokeRemote().
 remotes:
   - key: traceability-backend
     baseUrl: https://playwright-traceability.fly.dev
     operations:
       - fetch
 permissions:
-  scopes: []
+  # The app system token carries only these: reading Jira issues as the app's
+  # bot user (issue #41). The backend never writes to Jira.
+  scopes:
+    - read:app-system-token
+    - read:jira-work
   external:
     fetch:
       backend:

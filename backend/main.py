@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from backend.auth import require_webhook_token
 from backend.db import SessionLocal, get_db, init_db
 from backend.drift_detection import detect_drift_for_issue
+from backend.jira_access import require_jira_client
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.jira_polling import poll_for_changes
 from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirement, pull_requirements
@@ -61,7 +62,7 @@ from backend.schemas import (
     IngestKeyResponse,
     TenantInfo,
 )
-from backend.tenancy import current_tenant, generate_ingest_key, get_local_tenant, hash_ingest_key, ingest_tenant
+from backend.tenancy import RequestContext, current_tenant, generate_ingest_key, get_local_tenant, hash_ingest_key, ingest_tenant, request_context
 from backend.semantic_gap import GapAnalysisError, LLMNotConfiguredError, analyze_gap
 from backend.test_inventory import build_inventory, entries_for_jira_key
 
@@ -224,12 +225,18 @@ def create_jira_connection(
     "/api/jira/connection",
     response_model=JiraConnectionStatus,
 )
-def get_jira_connection(db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)) -> JiraConnectionStatus:
-    """Return the current Jira connection status, if one has been set up.
+def get_jira_connection(
+    db: Session = Depends(get_db), context: RequestContext = Depends(request_context)
+) -> JiraConnectionStatus:
+    """Return the current Jira connection status.
 
+    Connected if this request carries a Forge app system token (the product
+    path - nothing to set up) or the tenant has a stored email + API token.
     Never returns the stored API token.
     """
-    connection = _connection_for(db, tenant)
+    if context.system_token and context.jira_api_base_url:
+        return JiraConnectionStatus(connected=True, display_name="Forge app")
+    connection = _connection_for(db, context.tenant)
     if connection is None:
         return JiraConnectionStatus(connected=False)
     return _status_from_connection(connection)
@@ -254,6 +261,7 @@ def get_jira_requirements(
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(current_tenant),
+    client: JiraClient = Depends(require_jira_client),
 ) -> JiraRequirementsResponse:
     """Pull every Story/Task (by default) in a Jira project as requirements.
 
@@ -261,9 +269,6 @@ def get_jira_requirements(
     Requires a Jira connection to already be set up via POST
     /api/jira/connection.
     """
-    connection = _require_connection(db, tenant)
-
-    client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
 
     try:
@@ -486,6 +491,7 @@ def get_requirement_coverage(
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(current_tenant),
+    client: JiraClient = Depends(require_jira_client),
 ) -> CoverageResponse:
     """Return per-requirement test coverage for a Jira project (issue #13).
 
@@ -495,9 +501,6 @@ def get_requirement_coverage(
     it at all. Requires a Jira connection to already be set up via POST
     /api/jira/connection. Not authenticated (read-only, local-only use).
     """
-    connection = _require_connection(db, tenant)
-
-    client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
     inventory_entries = build_inventory(db, tenant.id)
 
@@ -525,6 +528,7 @@ def get_requirement_links(
     issue_types: str | None = Query(default=None, description="Comma-separated, e.g. 'Story,Task'"),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(current_tenant),
+    client: JiraClient = Depends(require_jira_client),
 ) -> RequirementLinksResponse:
     """Return every requirement<->test link for a Jira project, with its
     suspect-link state (Milestone 4, issue #18).
@@ -535,9 +539,6 @@ def get_requirement_links(
     POST /api/jira/connection. Not authenticated (read-only, local-only
     use, same posture as the other GET endpoints).
     """
-    connection = _require_connection(db, tenant)
-
-    client = JiraClient(connection.site_url, connection.email, connection.api_token)
     types = issue_types.split(",") if issue_types is not None else DEFAULT_ISSUE_TYPES
     inventory_entries = build_inventory(db, tenant.id)
 
@@ -558,7 +559,11 @@ def get_requirement_links(
     response_model=RequirementLinkOut,
 )
 def review_requirement_link(
-    link_id: int, db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)
+    link_id: int,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
+    client: JiraClient = Depends(require_jira_client),
+
 ) -> dict:
     """Manually clear a link's Suspect state by re-snapshotting it against
     Jira's current content (Milestone 4, issue #20).
@@ -576,9 +581,6 @@ def review_requirement_link(
     if link is None or link.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="No such requirement link")
 
-    connection = _require_connection(db, tenant)
-
-    client = JiraClient(connection.site_url, connection.email, connection.api_token)
     try:
         requirement = pull_requirement(client, link.jira_key)
     except JiraAuthError as exc:
@@ -609,7 +611,12 @@ def review_requirement_link(
     response_model=GapAnalysisResponse,
 )
 def get_gap_analysis(
-    project_key: str, jira_key: str, db: Session = Depends(get_db), tenant: Tenant = Depends(current_tenant)
+    project_key: str,
+    jira_key: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(current_tenant),
+    client: JiraClient = Depends(require_jira_client),
+
 ) -> GapAnalysisResponse:
     """Judge, per acceptance criterion, whether jira_key's linked tests
     actually cover it (Milestone 5, issues #21/#22) - the differentiator
@@ -624,9 +631,6 @@ def get_gap_analysis(
     if not jira_key.startswith(f"{project_key}-"):
         raise HTTPException(status_code=400, detail=f"{jira_key} does not belong to project {project_key}")
 
-    connection = _require_connection(db, tenant)
-
-    client = JiraClient(connection.site_url, connection.email, connection.api_token)
     try:
         requirement = pull_requirement(client, jira_key)
     except JiraAuthError as exc:
