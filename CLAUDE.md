@@ -282,21 +282,32 @@ classic Jira webhook only serves the `local` tenant.
 
 **Product review (2026-11-12) re-ordered the plan.** Two new milestones:
 - **Multi-Tenancy (#40-#43) - blocks Marketplace #37/#38.** #40
-  (per-installation data isolation) and #42 (per-tenant ingest keys +
-  Settings tab) are DONE. **#41 is the remaining blocker**: Jira calls
-  still use a stored email + API token, so a customer install has no way to
-  connect Jira (Coverage returns "No Jira connection"). It needs Forge's app
-  token instead, plus a plan for background work (polling/drift) that runs
-  outside a user request. #43 (cold starts): `min_machines_running = 1` in
-  `fly.toml` is deployed. The Postgres half is an unverified stopgap: the
-  idle shutdown is the machine env var `FLY_SCALE_TO_ZERO` on
-  `upg-ambered-dust-003` (unmanaged Fly Postgres, no longer maintained by
-  Fly). Removing it needs `fly deploy`, which the $1 trial blocks (credit
-  card), so it was raised from `1h` to `8760h` via `fly machine update -e`.
-  Still to verify after >1h idle that the DB isn't Suspended. Real fix: add
-  a card, remove the var, and move to Fly Managed Postgres before customers.
-  Forge gives a panel call ~25s with no retry; first loads after idle took
-  ~18s twice on 2026-11-11.
+  (isolation), #41 (Jira via Forge's app system token) and #42 (per-tenant
+  ingest keys + Settings tab) are DONE; #43 is half done. **#41 detail**
+  (PRs #49/#51, verified live on pwtrace 2026-11-12): the frontend calls the
+  backend with `invokeRemote` (NOT `requestRemote`, which carries no tokens)
+  through a manifest `endpoint` with `auth.appSystemToken`; the backend uses
+  that ~4h token + the verified FIT's `app.apiBaseUrl` as a Bearer
+  credential, falling back to the tenant's stored Basic connection. **No
+  token is ever stored** - each call/trigger/event delivers a fresh one.
+  Drift detection for customers needs no webhook/polling script: an
+  `avi:jira:updated:issue` trigger (`/api/forge/events/issue-updated`,
+  verified live: edit -> Suspect in under a minute) plus an hourly
+  `scheduledTrigger` (`/api/forge/scheduled/poll`, **NOT yet confirmed
+  firing live** - check `fly logs` around the top of an hour). Forge gives
+  event deliveries **5 seconds** and retries non-2xx 4x, so both routes ack
+  immediately and work in a background task. Details: `backend/README.md`.
+  **#43 (cold starts)**: `min_machines_running = 1` in `fly.toml` is
+  deployed. The Postgres half is an unverified stopgap: the idle shutdown is
+  the machine env var `FLY_SCALE_TO_ZERO` on `upg-ambered-dust-003`
+  (unmanaged Fly Postgres, no longer maintained by Fly). Removing it needs
+  `fly deploy`, which the $1 trial blocks (credit card), so it was raised
+  from `1h` to `8760h` via `fly machine update -e`. Still to verify after
+  >1h idle that the DB isn't Suspended. Real fix: add a card, remove the var,
+  and move to Fly Managed Postgres before customers. Forge gives a call ~25s
+  with no retry; first loads after idle took ~18s twice on 2026-11-11.
+  **#50**: Analyze gaps took 20s+ on a tiny ticket - near that limit; needs
+  start-and-poll before real use.
 - **Adoption (#44-#47):** a Playwright reporter npm package that uploads
   from CI instead of the hand-run Python script (#44); a Jira issue panel
   showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
@@ -308,10 +319,12 @@ classic Jira webhook only serves the `local` tenant.
   Strongest fit is regulated teams (medical, fintech, automotive) where
   traceability is mandatory.
 
-**Next:** #41 (Jira via Forge's app token) and #47, then the rest of
-Adoption and Milestone 9 (#35-#39). For the Marketplace, switch CORS to a
-regex for `https://<any>.atlassian.net`, which is only safe with
-REQUIRE_FORGE_AUTH on.
+**Next:** #47 (talk to 3-5 QA leads before Marketplace work), then the
+rest of Adoption (#44-#46) and Milestone 9 (#35-#39); plus #50 and the
+Postgres move from #43. CORS is no longer needed for the Forge app now that
+it uses `invokeRemote` (Forge proxies the call), so the earlier plan to
+widen it to `https://<any>.atlassian.net` can be dropped - keep
+`CORS_ALLOW_ORIGINS` only if the standalone frontend ever needs it.
 
 **Working on forge-app - hard-won gotchas:**
 - The Forge CLI needs Node 22/24: `export NVM_DIR="$HOME/.nvm" && source
@@ -326,6 +339,14 @@ REQUIRE_FORGE_AUTH on.
   in chat (INGEST_API_KEY, Jira/Anthropic/Fly/Atlassian tokens).
 - Developer Space: `hazeltech` (id 510f3c41-5b47-4c2e-bed3-99986d4b4c4f);
   non-interactive `forge create` needs `-s <id> -y`.
+- Manifest changes that add scopes are a MAJOR version: `forge deploy`
+  fails with an approval note until you add `--approve MAJOR_VERSION_RULE`,
+  and the install keeps running the old major until the user runs `forge
+  install --upgrade -e development` (via `npx @forge/cli`, there is no global
+  `forge`). New modules without new scopes deploy as a minor version.
+  `npx @forge/cli lint` works from this shell (it is just not in CI).
+- A frontend `invokeRemote` returns `{status, headers, body}`, not a fetch
+  `Response`. Event/scheduled triggers call a backend `route.path` directly.
 - UI Kit rules: only components exported by `@forge/react`; check real prop
   types in `forge-app/node_modules/@atlaskit/forge-react-types/src/components/
   __generated__/` rather than guessing; a fragment's children lay out SIDE BY
