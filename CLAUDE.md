@@ -222,7 +222,7 @@ as a Forge **Remote**. Decided: Forge over Connect; UI Kit over Custom UI
 row highlight etc. don't carry over); a Remote forfeits "Runs on
 Atlassian" eligibility (accepted).
 
-**Status: Milestone 7 done (#25-#29); Milestone 8 in progress - #30 done.**
+**Status: Milestone 7 done (#25-#29); Milestone 8 in progress - #30-#32 done.**
 - #25/#26 `backend/forge_auth.py`: verifies Forge Invocation Tokens (RS256,
   Atlassian JWKS, `iss`/`aud`/`app.id`) on the 10 dashboard routes, off by
   default behind `REQUIRE_FORGE_AUTH` + `FORGE_APP_ID` (the full
@@ -241,6 +241,13 @@ Atlassian" eligibility (accepted).
 - #30 `InventoryView` ported to UI Kit (`forge-app/src/frontend/
   InventoryView.jsx`, pure logic in `lib/inventory.js` with `node --test`
   unit tests), deployed to development as 2.2.0 and visually verified.
+- #31/#32 `CoverageView.jsx` ported (requirements table, Key-cell Button
+  for selection - `primary` appearance when selected, detail panel with
+  Analyze gaps / Show links / Close, link sub-table with Mark reviewed),
+  pure logic in `lib/health.js`. Deployed as 2.4.0 and verified in Chrome
+  against KAN (13 requirements; KAN-4 gap analysis returned 3 covered
+  criteria). Not yet exercised: Mark reviewed (needs a Suspect link) and
+  an orphaned-row panel.
 
 **Current live state of the Fly deployment** (not in git): secrets set
 there are DATABASE_URL, INGEST_API_KEY (was missing once; re-generated), the three JIRA_* ones,
@@ -252,26 +259,31 @@ JIRA_API_TOKEN set as Fly secrets; the env bootstrap in `backend/main.py`
 stored it on startup; verified - Jira keys in the Inventory tab render as
 links), so Coverage (#31) has what it needs.
 
-**Next: #31** (Coverage table + row selection), **#32** (detail panel),
-**#33** (project-context auto-detect via `useProductContext`), **#34**
-(manual E2E pass), then Milestone 9 (#35-#39: free-vs-paid decision,
-security review of FIT verification, Marketplace Partner/listing, Atlassian
-review, go-live). **Before real customers: kill the cold starts** - the
-Fly app (`auto_stop_machines`, `min_machines_running = 0` in `fly.toml`)
-and the Postgres instance both scale to zero, and Forge gives a panel call
-~25s with no retries, so a first load after idle can fail (a one-off error
-was seen on first reload after a restart, message not captured; unconfirmed
-cause - if it recurs, capture the text and check `fly logs`). Fix: set
-`min_machines_running = 1`, and turn off Postgres auto-stop. Plan details are in the GitHub issues. Design decisions
-already made for #31: row selection = a `Button` in the Key cell (UI Kit's
-DynamicTable has no row-click; `highlightedRowIndex` is not for selection),
-selected state shown via the button's `appearance`; detail panel = a
-conditional `Stack` below the table, link sub-table = a second
-DynamicTable; port `rollUpHealth`/`STATE_SEVERITY`/`LINK_STATE_CLASS` as
-pure functions in `forge-app/src/frontend/lib/` (Lozenge mapping:
-covered->success, suspect->moved, stale/orphaned->removed). For the
-Marketplace, switch CORS to a regex for `https://<any>.atlassian.net`,
-which is only safe with REQUIRE_FORGE_AUTH on.
+**Product review (2026-11-12) re-ordered the plan.** Two new milestones:
+- **Multi-Tenancy (#40-#43) - blocks Marketplace #37/#38.** The backend is
+  single-tenant: one `JiraConnection` from env vars, no tenant column on
+  any table, one global `INGEST_API_KEY`. Needs per-installation data
+  isolation (#40), Jira calls via Forge's app system token instead of a
+  personal API token (#41), per-installation ingest keys (#42), and the
+  cold-start fix (#43: `min_machines_running = 1` in `fly.toml`, Postgres
+  auto-stop off; Forge gives a panel call ~25s with no retry, and first
+  loads after idle took ~18s twice on 2026-11-11).
+- **Adoption (#44-#47):** a Playwright reporter npm package that uploads
+  from CI instead of the hand-run Python script (#44); a Jira issue panel
+  showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
+  suggested test-to-requirement links, human-accepted, never auto-linked
+  (#46); and talking to 3-5 QA leads before Marketplace work (#47).
+- Positioning: Xray/Zephyr/AIO already import Playwright results into
+  Jira. The pitch is "they make you maintain test cases in Jira; we read
+  your actual tests and tell you when they no longer match the ticket."
+  Strongest fit is regulated teams (medical, fintech, automotive) where
+  traceability is mandatory.
+
+**Next:** #33 (project-context auto-detect via `useProductContext`), #34
+(manual E2E pass), then Multi-Tenancy (#40-#43) and #47, then the rest of
+Adoption and Milestone 9 (#35-#39). For the Marketplace, switch CORS to a
+regex for `https://<any>.atlassian.net`, which is only safe with
+REQUIRE_FORGE_AUTH on.
 
 **Working on forge-app - hard-won gotchas:**
 - The Forge CLI needs Node 22/24: `export NVM_DIR="$HOME/.nvm" && source
