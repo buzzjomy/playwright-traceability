@@ -273,8 +273,13 @@ links), so Coverage (#31) has what it needs.
   any table, one global `INGEST_API_KEY`. Needs per-installation data
   isolation (#40), Jira calls via Forge's app system token instead of a
   personal API token (#41), per-installation ingest keys (#42), and the
-  cold-start fix (#43: `min_machines_running = 1` in `fly.toml`, Postgres
-  auto-stop off; Forge gives a panel call ~25s with no retry, and first
+  cold-start fix (#43: `min_machines_running = 1` in `fly.toml` - done and
+  deployed 2026-11-12; Postgres: the idle shutdown is the machine env var
+  `FLY_SCALE_TO_ZERO=1h` on `upg-ambered-dust-003` (unmanaged Fly Postgres,
+  no longer maintained by Fly). Removing it needs `fly deploy`, which the $1
+  trial blocks (needs a credit card), so it was raised to `8760h` via
+  `fly machine update -e` as an unverified stopgap. Real fix: add a card,
+  remove the var, and plan a move to Fly Managed Postgres before customers; Forge gives a panel call ~25s with no retry, and first
   loads after idle took ~18s twice on 2026-11-11).
 - **Adoption (#44-#47):** a Playwright reporter npm package that uploads
   from CI instead of the hand-run Python script (#44); a Jira issue panel
