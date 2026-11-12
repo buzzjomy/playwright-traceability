@@ -15,18 +15,49 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-class JiraConnection(Base):
-    """A configured connection to one Jira Cloud site.
+LOCAL_TENANT_KEY = "local"
 
-    Single-row-per-deployment for now (a solo builder's MVP, not yet
-    multi-tenant) - see jira_client.py for the auth flow this backs.
-    api_token is stored as given, not encrypted; this is a known gap to
-    close before any multi-user or production deployment.
+
+class Tenant(Base):
+    """One customer installation of the app - the unit every other table is
+    isolated by (Multi-Tenancy milestone, issue #40).
+
+    `key` is the Forge installation id (`app.installationId` from the
+    verified Forge Invocation Token), the stable per-install identifier.
+    `LOCAL_TENANT_KEY` is the single tenant used when no Forge auth is in
+    play (local dev, the standalone frontend/ dashboard) - never reachable
+    from a Forge request unless explicitly opted in (see tenancy.py).
+    `ingest_key_hash` is the SHA-256 of this tenant's CI upload key (issue
+    #42); the key itself is shown once and never stored.
+    """
+
+    __tablename__ = "tenants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String, unique=True)
+    cloud_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ingest_key_hash: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+def tenant_fk() -> Mapped[int]:
+    """A non-null, indexed foreign key to tenants.id - the column every
+    tenant-owned table carries, declared once so none can drift."""
+    return mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+
+
+class JiraConnection(Base):
+    """A configured connection to one Jira Cloud site, one per tenant.
+
+    See jira_client.py for the auth flow this backs. api_token is stored
+    as given, not encrypted; this is a known gap to close before any
+    production deployment (issue #41 replaces this with Forge's app token).
     """
 
     __tablename__ = "jira_connections"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     site_url: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False)
     api_token: Mapped[str] = mapped_column(String, nullable=False)
@@ -43,6 +74,7 @@ class TestRun(Base):
     __tablename__ = "test_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     pushed_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     records: Mapped[list["TestRunRecord"]] = relationship(back_populates="run", cascade="all, delete-orphan")
@@ -57,11 +89,12 @@ class TestRunRecord(Base):
         # Backs build_inventory's windowed per-(file, title, project) history
         # query and reconciliation lookups - without it, both are sequential
         # scans once the table has any real run history.
-        Index("ix_test_run_records_file_title_project_run_id", "file", "title", "project", "run_id"),
+        Index("ix_test_run_records_tenant_file_title_project_run_id", "tenant_id", "file", "title", "project", "run_id"),
         Index("ix_test_run_records_run_id", "run_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id"), nullable=False)
     spec_id: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
@@ -94,9 +127,10 @@ class SourceTestRecord(Base):
     """
 
     __tablename__ = "source_test_records"
-    __table_args__ = (Index("ix_source_test_records_file_title", "file", "title"),)
+    __table_args__ = (Index("ix_source_test_records_tenant_file_title", "tenant_id", "file", "title"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     source_type: Mapped[str] = mapped_column(String)  # "static" | "feature"
     title: Mapped[str] = mapped_column(String)
     full_title: Mapped[str] = mapped_column(String)
@@ -121,6 +155,7 @@ class JiraWebhookEvent(Base):
     __tablename__ = "jira_webhook_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     received_at: Mapped[datetime] = mapped_column(default=utcnow)
     issue_key: Mapped[str] = mapped_column(String)
     webhook_event: Mapped[str] = mapped_column(String)
@@ -138,9 +173,11 @@ class JiraPollState(Base):
     """
 
     __tablename__ = "jira_poll_state"
+    __table_args__ = (UniqueConstraint("tenant_id", "project_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_key: Mapped[str] = mapped_column(String, unique=True)
+    tenant_id: Mapped[int] = tenant_fk()
+    project_key: Mapped[str] = mapped_column(String)
     last_polled_at: Mapped[datetime] = mapped_column()
 
 
@@ -168,11 +205,12 @@ class RequirementLink(Base):
 
     __tablename__ = "requirement_links"
     __table_args__ = (
-        UniqueConstraint("jira_key", "test_file", "test_title"),
-        Index("ix_requirement_links_test_file_test_title", "test_file", "test_title"),
+        UniqueConstraint("tenant_id", "jira_key", "test_file", "test_title"),
+        Index("ix_requirement_links_tenant_test_file_test_title", "tenant_id", "test_file", "test_title"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
     jira_key: Mapped[str] = mapped_column(String, index=True)
     test_file: Mapped[str] = mapped_column(String)
     test_title: Mapped[str] = mapped_column(String)

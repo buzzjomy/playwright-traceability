@@ -27,3 +27,4 @@ anthropic>=0.40
 # exists; Atlassian ships Node.js/jose and Java/Spring Boot reference
 # backends only).
 pyjwt[crypto]>=2.8
+alembic>=1.13

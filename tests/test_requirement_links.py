@@ -20,10 +20,17 @@ def _db_session():
     from sqlalchemy.orm import sessionmaker
 
     from backend.db import Base
+    from backend.models import Tenant
 
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    return sessionmaker(bind=engine)()
+    db = sessionmaker(bind=engine)()
+    tenant = Tenant(key="test-tenant")
+    db.add(tenant)
+    db.commit()
+    # Tests scope every record and query to this tenant.
+    db.tenant_id = tenant.id
+    return db
 
 
 def _requirement(key="KAN-4", summary="Homepage loads", description_text="Loads.", acceptance_criteria=None):
@@ -41,7 +48,7 @@ def _entry(file="homepage.spec.ts", title="should load", jira_keys=None):
 def test_sync_creates_a_new_link_hashed_at_link_time():
     db = _db_session()
     requirement = _requirement()
-    sync_requirement_links(db, [requirement], [_entry(jira_keys=["KAN-4"])])
+    sync_requirement_links(db, db.tenant_id, [requirement], [_entry(jira_keys=["KAN-4"])])
     db.commit()
 
     links = db.query(RequirementLink).all()
@@ -56,7 +63,7 @@ def test_sync_is_idempotent_and_does_not_touch_existing_links():
     requirement = _requirement()
     entry = _entry(jira_keys=["KAN-4"])
 
-    sync_requirement_links(db, [requirement], [entry])
+    sync_requirement_links(db, db.tenant_id, [requirement], [entry])
     db.commit()
     link = db.query(RequirementLink).one()
     link.state = SUSPECT  # simulate drift having already flipped it
@@ -64,7 +71,7 @@ def test_sync_is_idempotent_and_does_not_touch_existing_links():
 
     # A second sync call (e.g. a later dashboard load) must not recreate
     # or reset the link.
-    sync_requirement_links(db, [requirement], [entry])
+    sync_requirement_links(db, db.tenant_id, [requirement], [entry])
     db.commit()
 
     links = db.query(RequirementLink).all()
@@ -74,34 +81,34 @@ def test_sync_is_idempotent_and_does_not_touch_existing_links():
 
 def test_sync_skips_a_jira_key_with_no_matching_pulled_requirement():
     db = _db_session()
-    sync_requirement_links(db, [], [_entry(jira_keys=["KAN-4"])])
+    sync_requirement_links(db, db.tenant_id, [], [_entry(jira_keys=["KAN-4"])])
     db.commit()
 
     assert db.query(RequirementLink).count() == 0
 
 
 def test_resolve_effective_state_covered_by_default():
-    link = RequirementLink(jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
+    link = RequirementLink(tenant_id=1, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
     assert resolve_effective_state(link, test_exists=True, requirement_exists=True) == COVERED
 
 
 def test_resolve_effective_state_suspect_passes_through():
-    link = RequirementLink(jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=SUSPECT, content_hash="h", content_snapshot={})
+    link = RequirementLink(tenant_id=1, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=SUSPECT, content_hash="h", content_snapshot={})
     assert resolve_effective_state(link, test_exists=True, requirement_exists=True) == SUSPECT
 
 
 def test_resolve_effective_state_stale_when_test_missing():
-    link = RequirementLink(jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
+    link = RequirementLink(tenant_id=1, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
     assert resolve_effective_state(link, test_exists=False, requirement_exists=True) == STALE
 
 
 def test_resolve_effective_state_orphaned_when_requirement_missing():
-    link = RequirementLink(jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
+    link = RequirementLink(tenant_id=1, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
     assert resolve_effective_state(link, test_exists=True, requirement_exists=False) == ORPHANED
 
 
 def test_resolve_effective_state_orphaned_takes_priority_over_stale():
-    link = RequirementLink(jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
+    link = RequirementLink(tenant_id=1, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={})
     assert resolve_effective_state(link, test_exists=False, requirement_exists=False) == ORPHANED
 
 
@@ -109,24 +116,24 @@ def test_list_requirement_links_scopes_by_project_key_prefix():
     db = _db_session()
     db.add(
         RequirementLink(
-            jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={}
+            tenant_id=db.tenant_id, jira_key="KAN-4", test_file="a.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={}
         )
     )
     db.add(
         RequirementLink(
-            jira_key="OTHER-1", test_file="b.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={}
+            tenant_id=db.tenant_id, jira_key="OTHER-1", test_file="b.spec.ts", test_title="t", state=COVERED, content_hash="h", content_snapshot={}
         )
     )
     db.commit()
 
-    views = list_requirement_links(db, "KAN", [_requirement()], [_entry(jira_keys=["KAN-4"])])
+    views = list_requirement_links(db, db.tenant_id, "KAN", [_requirement()], [_entry(jira_keys=["KAN-4"])])
     assert [v.jira_key for v in views] == ["KAN-4"]
 
 
 def test_mark_reviewed_resets_state_and_hash():
     db = _db_session()
     old_requirement = _requirement(description_text="old text")
-    sync_requirement_links(db, [old_requirement], [_entry(jira_keys=["KAN-4"])])
+    sync_requirement_links(db, db.tenant_id, [old_requirement], [_entry(jira_keys=["KAN-4"])])
     db.commit()
 
     link = db.query(RequirementLink).one()

@@ -5,7 +5,7 @@ from backend.test_inventory import build_inventory
 def _add_source(db, file, title, full_title=None, tags=None, jira_keys=None, source_type="static"):
     db.add(
         SourceTestRecord(
-            source_type=source_type,
+            tenant_id=db.tenant_id, source_type=source_type,
             title=title,
             full_title=full_title or title,
             file=file,
@@ -18,12 +18,12 @@ def _add_source(db, file, title, full_title=None, tags=None, jira_keys=None, sou
 
 
 def _add_run(db, file, title, project, status, full_title=None, tags=None, jira_keys=None, is_flaky=False):
-    run = TestRun()
+    run = TestRun(tenant_id=db.tenant_id)
     db.add(run)
     db.flush()
     db.add(
         TestRunRecord(
-            run_id=run.id,
+            tenant_id=db.tenant_id, run_id=run.id,
             spec_id="spec-1",
             title=title,
             full_title=full_title or title,
@@ -48,10 +48,17 @@ def _db_session():
     from sqlalchemy.orm import sessionmaker
 
     from backend.db import Base
+    from backend.models import Tenant
 
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    return sessionmaker(bind=engine)()
+    db = sessionmaker(bind=engine)()
+    tenant = Tenant(key="test-tenant")
+    db.add(tenant)
+    db.commit()
+    # Tests scope every record and query to this tenant.
+    db.tenant_id = tenant.id
+    return db
 
 
 def test_matched_test_shows_both_in_source_and_has_run():
@@ -60,7 +67,7 @@ def test_matched_test_shows_both_in_source_and_has_run():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     entry = entries[0]
@@ -75,7 +82,7 @@ def test_source_only_test_has_never_run():
     _add_source(db, "auth.spec.ts", "should lock account", jira_keys=["PROJ-109"])
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     entry = entries[0]
@@ -93,7 +100,7 @@ def test_run_only_test_has_no_matching_source():
     _add_run(db, "auth.spec.ts", "should see the admin dashboard", "chromium", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     entry = entries[0]
@@ -108,7 +115,7 @@ def test_multi_project_test_produces_one_row_per_project():
     _add_run(db, "auth.spec.ts", "should expire session", "firefox", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 2
     by_project = {e.project: e.status for e in entries}
@@ -121,7 +128,7 @@ def test_jira_keys_and_tags_are_unioned_across_source_and_run():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", tags=["@regression"], jira_keys=["PROJ-999"])
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].tags == ["@regression", "@smoke"]
@@ -135,7 +142,7 @@ def test_only_the_latest_run_per_project_is_used():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed")  # a later push
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].status == "passed"
@@ -148,7 +155,7 @@ def test_history_accumulates_across_pushes_oldest_first():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     history = entries[0].history
@@ -163,7 +170,7 @@ def test_history_is_per_project_not_shared_across_projects():
     _add_run(db, "auth.spec.ts", "should login", "firefox", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     by_project = {e.project: e for e in entries}
     assert [p.status for p in by_project["chromium"].history] == ["failed"]
@@ -179,7 +186,7 @@ def test_history_is_capped_at_max_history_points():
         _add_run(db, "auth.spec.ts", "should login", "chromium", status)
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert len(entries[0].history) == MAX_HISTORY_POINTS
@@ -193,7 +200,7 @@ def test_source_only_test_has_no_history():
     _add_source(db, "auth.spec.ts", "should lock account")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].history == []
@@ -204,7 +211,7 @@ def test_is_flaky_reflects_the_latest_run():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", is_flaky=True)
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].is_flaky is True
@@ -216,7 +223,7 @@ def test_is_flaky_uses_only_the_latest_run_not_history():
     _add_run(db, "auth.spec.ts", "should login", "chromium", "passed", is_flaky=False)  # a later, clean push
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].is_flaky is False
@@ -227,7 +234,7 @@ def test_source_only_test_is_not_flaky():
     _add_source(db, "auth.spec.ts", "should lock account")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 1
     assert entries[0].is_flaky is False
@@ -248,10 +255,10 @@ def test_build_inventory_against_real_sample_fixtures():
     db = _db_session()
 
     for record in parse_report_file(samples_dir / "sample-report.json"):
-        run = TestRun()
+        run = TestRun(tenant_id=db.tenant_id)
         db.add(run)
         db.flush()
-        db.add(TestRunRecord(run_id=run.id, **record.to_dict()))
+        db.add(TestRunRecord(tenant_id=db.tenant_id, run_id=run.id, **record.to_dict()))
 
     # samples/sample-report.json's "file" is rootDir-relative (e.g.
     # "auth.spec.ts"), while parse_spec_directory(samples_dir /
@@ -263,11 +270,11 @@ def test_build_inventory_against_real_sample_fixtures():
     # (file, title) sharp edge, not a bug.
     for record in parse_spec_directory(samples_dir / "sample-specs"):
         record.file = str(Path(record.file).relative_to(samples_dir / "sample-specs"))
-        db.add(SourceTestRecord(source_type="static", **record.to_dict()))
+        db.add(SourceTestRecord(tenant_id=db.tenant_id, source_type="static", **record.to_dict()))
 
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
     by_title = {e.title: e for e in entries}
 
     assert by_title["should lock account after 5 failed attempts"].has_run is False
@@ -287,7 +294,7 @@ def test_reconciliation_requires_matching_file_paths():
     _add_run(db, "auth.spec.ts", "should login with valid credentials", "chromium", "passed")
     db.commit()
 
-    entries = build_inventory(db)
+    entries = build_inventory(db, db.tenant_id)
 
     assert len(entries) == 2
     assert {e.has_run for e in entries} == {True, False}

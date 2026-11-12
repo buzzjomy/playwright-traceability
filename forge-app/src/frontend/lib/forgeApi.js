@@ -49,3 +49,13 @@ export function fetchGapAnalysis(projectKey, jiraKey) {
   const params = new URLSearchParams({ project_key: projectKey, jira_key: jiraKey });
   return callBackend(`/api/coverage/gap-analysis?${params.toString()}`, 'POST');
 }
+
+/** GET /api/tenant - this installation's id and whether it already has a CI ingest key. */
+export function fetchTenant() {
+  return callBackend('/api/tenant', 'GET');
+}
+
+/** POST /api/tenant/ingest-key - generate (or replace) the CI ingest key; the key comes back once. */
+export function createIngestKey() {
+  return callBackend('/api/tenant/ingest-key', 'POST');
+}

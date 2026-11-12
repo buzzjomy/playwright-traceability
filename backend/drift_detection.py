@@ -23,9 +23,9 @@ from backend.requirement_hash import hash_requirement_content
 from backend.requirement_links import COVERED, SUSPECT
 
 
-def detect_drift_for_issue(db: Session, client: JiraClient, issue_key: str) -> int:
+def detect_drift_for_issue(db: Session, tenant_id: int, client: JiraClient, issue_key: str) -> int:
     """Re-check one issue's live content against every non-suspect
-    RequirementLink for it, flipping mismatches to Suspect. Returns how
+    RequirementLink of this tenant for it, flipping mismatches to Suspect. Returns how
     many links were flipped. Does not commit - the caller shares a
     transaction with whatever recorded the triggering event.
 
@@ -35,7 +35,9 @@ def detect_drift_for_issue(db: Session, client: JiraClient, issue_key: str) -> i
     there's no content to compare against or summarize a change from.
     """
     links = db.query(RequirementLink).filter(
-        RequirementLink.jira_key == issue_key, RequirementLink.state == COVERED
+        RequirementLink.tenant_id == tenant_id,
+        RequirementLink.jira_key == issue_key,
+        RequirementLink.state == COVERED,
     ).all()
     if not links:
         return 0

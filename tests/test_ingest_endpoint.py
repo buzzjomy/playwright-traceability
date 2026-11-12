@@ -49,10 +49,12 @@ def test_wrong_api_key_is_rejected(client):
     assert response.status_code == 401
 
 
-def test_missing_server_api_key_fails_closed(client, monkeypatch):
+def test_no_matching_key_fails_closed_when_no_legacy_key_is_configured(client, monkeypatch):
+    # With no legacy global key and no per-tenant key matching, nothing
+    # authenticates - never a default tenant.
     monkeypatch.delenv("INGEST_API_KEY", raising=False)
     response = client.post("/api/ingest/run", json={"run_report": []}, headers=_auth_headers())
-    assert response.status_code == 500
+    assert response.status_code == 401
 
 
 def test_push_run_report_creates_a_run(client):

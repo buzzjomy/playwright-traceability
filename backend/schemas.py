@@ -222,3 +222,17 @@ class GapAnalysisResponse(BaseModel):
     jira_key: str
     criteria: list[CriterionGapResultOut]
     uncovered_count: int
+
+
+class TenantInfo(BaseModel):
+    """GET /api/tenant - the caller's own installation (issue #42)."""
+
+    installation_id: str
+    cloud_id: str | None = None
+    has_ingest_key: bool
+
+
+class IngestKeyResponse(BaseModel):
+    """POST /api/tenant/ingest-key - the new key, shown only this once."""
+
+    ingest_key: str
