@@ -297,18 +297,26 @@ classic Jira webhook only serves the `local` tenant.
   Drift detection for customers needs no webhook/polling script: an
   `avi:jira:updated:issue` trigger (`/api/forge/events/issue-updated`,
   verified live: edit -> Suspect in under a minute) plus an hourly
-  `scheduledTrigger` (`/api/forge/scheduled/poll`, **NOT yet confirmed
-  firing live** - check `fly logs` around the top of an hour). Forge gives
+  `scheduledTrigger` (`/api/forge/scheduled/poll`, **confirmed firing live**:
+  `fly logs` showed Forge's `POST ... 200 OK` on 2026-11-13; the log does not
+  show what the poll found, only that it was accepted without error). Forge gives
   event deliveries **5 seconds** and retries non-2xx 4x, so both routes ack
   immediately and work in a background task. Details: `backend/README.md`.
-  **#43 (cold starts)**: `min_machines_running = 1` in `fly.toml` is
-  deployed. The Postgres half is an unverified stopgap: the idle shutdown is
+  **#43 (cold starts) - ROOT CAUSE FOUND 2026-11-13: the Fly free TRIAL
+  stops every machine after 5 minutes** (`fly logs`: "Trial machine
+  stopping. To run for longer than 5m0s, add a credit card"; both app
+  machines stopped 5 min after the hourly poll woke them). So
+  `min_machines_running = 1` and the Postgres stopgap below cannot keep
+  anything warm while on the trial, and the backend cannot serve anyone
+  reliably. **Adding a card on Fly is the fix** (owner's action; Fly bills
+  only usage). `min_machines_running = 1` in `fly.toml` is deployed and will
+  take effect once a card is on file. The Postgres half: the idle shutdown is
   the machine env var `FLY_SCALE_TO_ZERO` on `upg-ambered-dust-003`
   (unmanaged Fly Postgres, no longer maintained by Fly). Removing it needs
   `fly deploy`, which the $1 trial blocks (credit card), so it was raised
-  from `1h` to `8760h` via `fly machine update -e`. Still to verify after
-  >1h idle that the DB isn't Suspended. Real fix: add a card, remove the var,
-  and move to Fly Managed Postgres before customers. Forge gives a call ~25s
+  from `1h` to `8760h` via `fly machine update -e`. Moot while on the
+  trial (the trial stops it anyway). Real fix: add a card, remove the var, and
+  move to Fly Managed Postgres before customers. Forge gives a call ~25s
   with no retry; first loads after idle took ~18s twice on 2026-11-11.
   **#50**: Analyze gaps took 20s+ on a tiny ticket - near that limit; needs
   start-and-poll before real use.
@@ -333,9 +341,9 @@ classic Jira webhook only serves the `local` tenant.
   `reporter/test/sample-payload.json` (regenerate: `UPDATE_FIXTURE=1 npm
   test` in `reporter/`); CI job `reporter-tests`. **Open:** the package is
   `"private": true` - the npm name/scope is the owner's call and publishing is
-  theirs; the backend needs a `fly deploy` for the endpoint (the Dockerfile
-  now copies `parser/`); it has NOT been run against the live backend (needs
-  a real ingest key from the Settings tab); the Settings tab still shows the
+  theirs; the endpoint is deployed and live (answers 401 without a key, checked
+  2026-11-12; the Dockerfile copies `parser/`), but the reporter has NOT yet
+  been run against it with a real ingest key from the Settings tab; the Settings tab still shows the
   Python CLI snippet and should switch to the reporter once it is published;
   `.feature` files and the Jira mapping file still go through the Python CLI.
 - Positioning: Xray/Zephyr/AIO already import Playwright results into
@@ -347,8 +355,7 @@ classic Jira webhook only serves the `local` tenant.
 **Next:** #47 (talk to 3-5 QA leads before more Marketplace work - the
 owner's to do; the guide is ready), then #45/#46 (shape depends on what the
 interviews say: they may favour the issue panel), Milestone 9 (#35-#39), #50
-and the Postgres move from #43. Also still open from this session: verify the
-hourly scheduled poll fires, and run the reporter against the live backend.
+and the Postgres move from #43. Also still open from this session: run the reporter against the live backend; add a card on Fly (#43).
 
 CORS is no longer needed for the Forge app now that
 it uses `invokeRemote` (Forge proxies the call), so the earlier plan to
