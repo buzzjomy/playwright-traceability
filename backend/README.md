@@ -549,6 +549,30 @@ moat, not an incremental feature.
   and not built here. Gap analysis today is stateless - every call re-runs
   the judgment fresh, nothing is persisted.
 
+### Running it in the background (issue #50)
+
+A gap analysis is a real LLM request that can take 20+ seconds, and Forge
+gives a single call only ~25 seconds with no retry. The Forge app therefore
+uses two quick calls instead of one slow one (`backend/gap_jobs.py`):
+
+- `POST /api/coverage/gap-analysis/start?project_key=&jira_key=` answers
+  `202` at once with a `pending` status and queues the work (the Jira client
+  built from that request's Forge token is handed to the background job).
+  A run already in progress for the same requirement is returned as-is, so a
+  double click never pays for two LLM calls.
+- `GET /api/coverage/gap-analysis/result?jira_key=` returns the latest run:
+  `none`, `pending`, `done` (with the per-criterion results) or `failed`
+  (with a readable message). Every failure - no `ANTHROPIC_API_KEY`, Claude
+  down, a requirement that no longer resolves, anything unexpected - becomes a
+  `failed` row rather than an error nobody is waiting to receive.
+
+The latest result is kept per tenant (`gap_analyses`, one row per tenant and
+requirement), so reopening a requirement shows its last analysis. A `pending`
+run older than 3 minutes is reported as `failed` ("interrupted"): the worker
+may have been stopped mid-run and nothing would ever finish it. The original
+synchronous `POST /api/coverage/gap-analysis` remains for callers with no time
+limit (the standalone dashboard).
+
 ## Multi-tenancy (issues #40/#42)
 
 Every customer installation is a `Tenant`, and every tenant-owned table

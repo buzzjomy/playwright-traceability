@@ -220,3 +220,29 @@ class RequirementLink(Base):
     change_summary: Mapped[str | None] = mapped_column(String, nullable=True)
     linked_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class GapAnalysis(Base):
+    """The latest gap-analysis run for one requirement of one tenant (issue #50).
+
+    The analysis is a real LLM call that can take 20+ seconds - longer than
+    Forge allows a single call - so it runs in the background: the start
+    request creates (or resets) this row as `pending` and returns, the job
+    fills in `criteria` and flips it to `done` (or `failed` with a message),
+    and the dashboard polls for it. One row per (tenant, jira_key): the
+    latest result, not a history (per-criterion history is issue #23).
+    """
+
+    __tablename__ = "gap_analyses"
+    __table_args__ = (UniqueConstraint("tenant_id", "jira_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = tenant_fk()
+    project_key: Mapped[str] = mapped_column(String)
+    jira_key: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)  # "pending" | "done" | "failed"
+    criteria: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    uncovered_count: Mapped[int | None] = mapped_column(nullable=True)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)

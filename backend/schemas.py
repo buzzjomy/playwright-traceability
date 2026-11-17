@@ -238,6 +238,22 @@ class GapAnalysisResponse(BaseModel):
     uncovered_count: int
 
 
+class GapAnalysisStatus(BaseModel):
+    """The latest gap-analysis run for a requirement (issue #50).
+
+    status is "none" (never run), "pending", "done" (criteria and
+    uncovered_count are set) or "failed" (error says why).
+    """
+
+    jira_key: str
+    status: str
+    criteria: list[CriterionGapResultOut] | None = None
+    uncovered_count: int | None = None
+    error: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
 class TenantInfo(BaseModel):
     """GET /api/tenant - the caller's own installation (issue #42)."""
 

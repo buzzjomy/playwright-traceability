@@ -31,6 +31,7 @@ from backend.drift_detection import detect_drift_for_issue
 from backend.jira_access import require_jira_client
 from backend.jira_client import JiraAuthError, JiraClient
 from backend.forge_triggers import poll_project, router as forge_triggers_router
+from backend.gap_jobs import router as gap_jobs_router
 from backend.jira_requirements import DEFAULT_ISSUE_TYPES, pull_requirement, pull_requirements
 from backend.models import (
     JiraConnection,
@@ -154,6 +155,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Playwright Traceability Backend", lifespan=lifespan)
 app.include_router(forge_triggers_router)
+app.include_router(gap_jobs_router)
 
 
 def cors_settings_from_env() -> dict | None:

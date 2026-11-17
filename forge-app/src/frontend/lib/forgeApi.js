@@ -45,10 +45,19 @@ export function markLinkReviewed(linkId) {
   return callBackend(`/api/requirement-links/${linkId}/reviewed`, 'POST');
 }
 
-/** POST /api/coverage/gap-analysis - per-criterion LLM verdicts for one requirement (a real LLM call). */
-export function fetchGapAnalysis(projectKey, jiraKey) {
+/**
+ * POST /api/coverage/gap-analysis/start - begin a gap analysis and return at once.
+ * The analysis is a 20s+ LLM call, longer than Forge allows one call, so it
+ * runs in the background and is polled for with fetchGapResult (issue #50).
+ */
+export function startGapAnalysis(projectKey, jiraKey) {
   const params = new URLSearchParams({ project_key: projectKey, jira_key: jiraKey });
-  return callBackend(`/api/coverage/gap-analysis?${params.toString()}`, 'POST');
+  return callBackend(`/api/coverage/gap-analysis/start?${params.toString()}`, 'POST');
+}
+
+/** GET /api/coverage/gap-analysis/result - the latest run for a requirement: none | pending | done | failed. */
+export function fetchGapResult(jiraKey) {
+  return callBackend(`/api/coverage/gap-analysis/result?jira_key=${encodeURIComponent(jiraKey)}`, 'GET');
 }
 
 /** GET /api/tenant - this installation's id and whether it already has a CI ingest key. */
