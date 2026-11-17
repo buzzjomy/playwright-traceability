@@ -1,22 +1,65 @@
-# Playwright Test Inventory Parsers (Milestone 1)
+# Playwright Traceability
 
 ![Requirement Coverage dashboard, showing per-requirement test coverage, health state, and a selected requirement's detail panel](docs/screenshots/requirement-coverage.png)
 
-> New to the dashboard? See [`USER_GUIDE.md`](USER_GUIDE.md) for how to
-> connect Jira, push test data, and use the Test Inventory / Requirement
-> Coverage / Gap Analysis views. This README (and the other `README.md`
-> files linked below) are developer/contributor docs, not an end-user guide.
+A Playwright-native requirements-traceability tool for Jira. It answers one
+question: **does this Jira requirement still have a test that actually covers
+what it asks for?**
 
-> Milestone 2 (Jira Integration) is complete — see `backend/README.md` for
-> the FastAPI service, Jira auth flow, requirement pulling, and JSON
-> mapping-file linking (`parser/mapping_parser.py`, issue #9).
->
-> Milestone 3 (Traceability Dashboard) is complete — see `frontend/README.md`
-> for the dashboard (test inventory, issue #12; requirement coverage,
-> issue #13; pass/fail trend, issue #14; flaky-test flagging, issue #15)
-> and `backend/README.md` for the endpoints behind it.
+- **Test Inventory** - every Playwright test the tool knows about, from real
+  run reports plus a static scan of your specs.
+- **Requirement Coverage** - which Jira requirements have linked tests, and
+  which don't.
+- **Suspect links** - when a requirement's content changes in Jira, its linked
+  tests flip to *Suspect* until a human reviews them. It never clears itself.
+- **Gap Analysis** - an AI check of whether each *acceptance criterion* is
+  covered by the linked tests' assertions, not just whether some test is linked.
 
-Three complementary parsers, covering the first three issues of Milestone 1:
+> **Status (2026-11-17):** the Jira app (built on Atlassian Forge) runs as a
+> development install and is **not yet on the Atlassian Marketplace**. The
+> standalone dashboard and the hosted backend are working; see
+> [`CLAUDE.md`](CLAUDE.md) for the live state and what is still open.
+
+## Where to read next
+
+| If you want to... | Read |
+|---|---|
+| **Use the tool** (QA engineer / team lead) | [`USER_GUIDE.md`](USER_GUIDE.md) |
+| **Get your Playwright results in from CI** | [`reporter/README.md`](reporter/README.md) |
+| **Contribute or run the tests** | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| **Understand the backend** (API, Jira auth, multi-tenancy, migrations, triggers) | [`backend/README.md`](backend/README.md) |
+| **Understand the project's decisions and current status** | [`CLAUDE.md`](CLAUDE.md) |
+| **Run the interviews or a demo** | [`docs/customer-interview-guide.md`](docs/customer-interview-guide.md), [`docs/demo-script.md`](docs/demo-script.md) |
+
+## How it fits together
+
+```
+ Playwright run ──► reporter/  (or scripts/push_test_inventory.py)
+                        │  results + a scan of your specs
+                        ▼
+                  backend/  (FastAPI + Postgres, hosted on Fly.io)
+                        ▲  reads Jira as the app's own bot user (no customer credentials)
+        Jira ◄──────────┤  and is told about edits by Forge triggers
+                        │
+          forge-app/  (the Jira app: a Traceability tab in each project)
+          frontend/   (the standalone dashboard, for self-hosting)
+```
+
+| Directory | What it is |
+|---|---|
+| `parser/`, `static_parser/` | The three test-inventory parsers (below). Python, plus Node for the TypeScript AST scan. |
+| `backend/` | The FastAPI service: ingest, Jira access, coverage, suspect links, gap analysis, multi-tenancy. |
+| `forge-app/` | The Jira app (Atlassian Forge, UI Kit): Test Inventory, Requirement Coverage and Settings tabs. |
+| `reporter/` | A Playwright reporter (Node) that uploads results and a spec scan after each run. |
+| `frontend/` | The standalone React dashboard (an older, self-hosted front end for the same backend). |
+| `scripts/` | `push_test_inventory.py`, the Python CLI for uploading test data. |
+| `demo/google-search/` | A real demo Playwright project (tests against google.com) used as end-to-end data. |
+
+---
+
+## The parsers (Milestone 1)
+
+Three complementary parsers turn Playwright test data into structured records:
 
 1. `parser/report_parser.py` — parses Playwright's JSON reporter output into
    structured test records (title, file, status, duration). The **primary**
@@ -169,29 +212,17 @@ Gherkin 6+ feature) — their scenarios are simply skipped.
 
 ## Tests
 
-```bash
-pip install -r requirements.txt
-python -m pytest tests/ -v
-```
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to run every suite. The four
+parser-level test files cover this README's scope: `test_report_parser.py`
+(nested describe flattening, multi-project specs, retry/flakiness detection,
+and Jira key extraction across tag/annotation/title sources),
+`test_static_parser.py` (nested describes, `test.skip`/`test.describe.skip`
+capture, dynamic-title exclusion, Jira keys from tag options and `Trace(...)`
+comments), `test_feature_parser.py` (Feature/Scenario tag combination,
+`Trace(...)` extraction, Scenario Outline expansion into one record per
+Examples row) and `test_zero_test_suite.py` (every parser degrades to `[]`
+gracefully on an empty or nonexistent directory, never raises).
 
-This runs the whole repo's test suite (142 passing as of Milestone 3,
-across the parsers here, `backend/`, and the CLI in `scripts/` — see
-`backend/README.md` and `frontend/README.md` for what those add; plus 5
-more real-Jira integration tests, skipped unless credentials are
-configured, see below). The 40 below are this README's own scope, the
-four parser-level files:
-
-`test_report_parser.py` (14): nested describe flattening,
-multi-project specs, retry/flakiness detection, and Jira key extraction
-across tag/annotation/title sources. `test_static_parser.py` (9): nested
-describe flattening, `test.skip`/`test.describe.skip` capture, dynamic-title
-exclusion, and Jira key extraction from tag options and `Trace(...)`
-comments. `test_feature_parser.py` (9): Feature/Scenario tag combination,
-`Trace(...)` comment extraction, and Scenario Outline expansion into one
-record per Examples row with combined tags and distinct titles.
-`test_zero_test_suite.py` (8): every parser degrades to `[]` gracefully on
-an empty or nonexistent test directory / empty run report, never raises.
-
-A separate real-Jira integration suite (`tests/integration/`) talks to a
-live Jira site instead of mocks and is skipped by default — see its own
-README for why and how to run it.
+A separate real-Jira integration suite (`tests/integration/`) talks to a live
+Jira site instead of mocks and is skipped by default - see its own README for
+why and how to run it.
