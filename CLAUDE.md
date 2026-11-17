@@ -318,8 +318,12 @@ classic Jira webhook only serves the `local` tenant.
   trial (the trial stops it anyway). Real fix: add a card, remove the var, and
   move to Fly Managed Postgres before customers. Forge gives a call ~25s
   with no retry; first loads after idle took ~18s twice on 2026-11-11.
-  **#50**: Analyze gaps took 20s+ on a tiny ticket - near that limit; needs
-  start-and-poll before real use.
+  **#50** (Analyze gaps took 20s+, near Forge's ~25s limit): built as
+  start-and-poll - `POST .../gap-analysis/start` returns 202 and runs the LLM
+  call in a background task; the app polls `GET .../result`; the latest result
+  is kept per tenant (`gap_analyses`, Alembic 0003) so reopening a requirement
+  shows it. Needs `fly deploy` (a migration) + a Forge deploy; not yet verified
+  live. The synchronous endpoint remains for the standalone dashboard.
 - **Adoption (#44-#47):** #44 DONE (below). Still open: a Jira issue panel
   showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
   suggested test-to-requirement links, human-accepted, never auto-linked

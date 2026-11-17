@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Button,
   DynamicTable,
@@ -12,7 +12,8 @@ import {
   Textfield,
   useProductContext,
 } from '@forge/react';
-import { fetchCoverage, fetchGapAnalysis, fetchRequirementLinks, markLinkReviewed } from './lib/forgeApi';
+import { fetchCoverage, fetchGapResult, fetchRequirementLinks, markLinkReviewed, startGapAnalysis } from './lib/forgeApi';
+import { waitForGapResult } from './lib/gapPolling';
 import { groupLinksByKey, linkStateAppearance, rollUpHealth, unmatchedKeys } from './lib/health';
 import { jiraBrowseUrl } from './lib/inventory';
 import { projectKeyFromContext, resolveProjectKey } from './lib/projectContext';
@@ -126,6 +127,9 @@ export const CoverageView = ({ siteUrl }) => {
   // The project the loaded data belongs to (the input may have been edited since).
   const [loadedKey, setLoadedKey] = useState(DEFAULT_PROJECT_KEY);
   const [autoLoaded, setAutoLoaded] = useState(false);
+  // Lets a polling loop notice the view has gone away.
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
   const load = (key) => {
     setLoading(true);
@@ -154,6 +158,16 @@ export const CoverageView = ({ siteUrl }) => {
   const selectRow = (key) => {
     setSelectedKey((current) => (current === key ? null : key));
     setLinksVisible(false);
+    // Opening a requirement shows its last analysis (kept on the server), and
+    // picks an in-progress one back up if the user navigated away mid-run.
+    if (selectedKey !== key && !gapResults[key]) {
+      fetchGapResult(key)
+        .then((result) => {
+          if (result.status === 'done') setGapResults((current) => ({ ...current, [key]: result }));
+          else if (result.status === 'pending') followAnalysis(key);
+        })
+        .catch(() => {});
+    }
   };
 
   const reviewLink = (linkId) => {
@@ -164,13 +178,29 @@ export const CoverageView = ({ siteUrl }) => {
       .finally(() => setReviewingId(null));
   };
 
+  // A gap analysis is a 20s+ LLM call - longer than Forge allows one call - so
+  // it runs in the background on the server and is polled for (issue #50).
+  const followAnalysis = (jiraKey) => {
+    setAnalyzingKey(jiraKey);
+    setGapErrors((current) => ({ ...current, [jiraKey]: '' }));
+    waitForGapResult(() => fetchGapResult(jiraKey), { isCancelled: () => !alive.current })
+      .then((result) => {
+        if (!result) return;
+        if (result.status === 'done') setGapResults((current) => ({ ...current, [jiraKey]: result }));
+        else setGapErrors((current) => ({ ...current, [jiraKey]: result.error ?? 'Gap analysis failed' }));
+      })
+      .finally(() => setAnalyzingKey((current) => (current === jiraKey ? null : current)));
+  };
+
   const analyzeGaps = (jiraKey) => {
     setAnalyzingKey(jiraKey);
     setGapErrors((current) => ({ ...current, [jiraKey]: '' }));
-    fetchGapAnalysis(loadedKey, jiraKey)
-      .then((result) => setGapResults((current) => ({ ...current, [jiraKey]: result })))
-      .catch((err) => setGapErrors((current) => ({ ...current, [jiraKey]: err.message })))
-      .finally(() => setAnalyzingKey(null));
+    startGapAnalysis(loadedKey, jiraKey)
+      .then(() => followAnalysis(jiraKey))
+      .catch((err) => {
+        setGapErrors((current) => ({ ...current, [jiraKey]: err.message }));
+        setAnalyzingKey(null);
+      });
   };
 
   const linksByKey = groupLinksByKey(links ?? []);
@@ -264,6 +294,7 @@ export const CoverageView = ({ siteUrl }) => {
                   Close
                 </Button>
               </Inline>
+              {analyzingKey === selectedKey && <Text>Analyzing - this can take up to a minute.</Text>}
               {selectedGapError && (
                 <SectionMessage appearance="error" title="Gap analysis failed">
                   <Text>{selectedGapError}</Text>
