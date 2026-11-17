@@ -350,8 +350,14 @@ classic Jira webhook only serves the `local` tenant.
   test` in `reporter/`); CI job `reporter-tests`. **Open:** the package is
   `"private": true` - the npm name/scope is the owner's call and publishing is
   theirs; the endpoint is deployed and live (answers 401 without a key, checked
-  2026-11-12; the Dockerfile copies `parser/`), but the reporter has NOT yet
-  been run against it with a real ingest key from the Settings tab; the Settings tab still shows the
+  2026-11-12; the Dockerfile copies `parser/`) and the reporter is VERIFIED
+  LIVE (2026-11-17: ran against `demo/google-search` with a key from the
+  Settings tab - uploaded 10 results; the inventory stayed at 10 rows, i.e.
+  the Node reporter's paths/titles reconcile with the Python CLI's earlier
+  data, and each test gained a trend dot). To run it without editing the
+  project's config: `npx playwright test --reporter=list,<abs path to
+  reporter/src/index.js>` with `TRACEABILITY_INGEST_KEY` set (use `read -s`
+  so the key stays out of shell history); the Settings tab still shows the
   Python CLI snippet and should switch to the reporter once it is published;
   `.feature` files and the Jira mapping file still go through the Python CLI.
 - Positioning: Xray/Zephyr/AIO already import Playwright results into
@@ -363,7 +369,7 @@ classic Jira webhook only serves the `local` tenant.
 **Next:** #47 (talk to 3-5 QA leads before more Marketplace work - the
 owner's to do; the guide is ready), then #45/#46 (shape depends on what the
 interviews say: they may favour the issue panel), Milestone 9 (#35-#39), #50
-and the Postgres move from #43. Also still open from this session: run the reporter against the live backend; add a card on Fly (#43).
+and the Postgres move from #43. Also still open: add a card on Fly (#43).
 
 CORS is no longer needed for the Forge app now that
 it uses `invokeRemote` (Forge proxies the call), so the earlier plan to
