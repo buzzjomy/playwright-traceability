@@ -322,8 +322,12 @@ classic Jira webhook only serves the `local` tenant.
   start-and-poll - `POST .../gap-analysis/start` returns 202 and runs the LLM
   call in a background task; the app polls `GET .../result`; the latest result
   is kept per tenant (`gap_analyses`, Alembic 0003) so reopening a requirement
-  shows it. Needs `fly deploy` (a migration) + a Forge deploy; not yet verified
-  live. The synchronous endpoint remains for the standalone dashboard.
+  shows it. Deployed (Forge 3.3.0) and verified live 2026-11-17: Analyze gaps on
+  KAN-4 returned 3 covered criteria in under ~10s this time, and after a full
+  page reload the stored result showed on selecting KAN-4 with no click. NOT
+  observed live: the "Analyzing..." pending state and a genuinely long run
+  (this one finished too fast to catch it) - covered by unit tests only. The
+  synchronous endpoint remains for the standalone dashboard.
 - **Adoption (#44-#47):** #44 DONE (below). Still open: a Jira issue panel
   showing per-ticket coverage/suspect/gaps (#45, mostly reuses #32); AI-
   suggested test-to-requirement links, human-accepted, never auto-linked
